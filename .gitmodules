@@ -1,0 +1,6 @@
+[submodule "deps/otto-gfx"]
+	path = deps/otto-gfx
+	url = git@github.com:NextThingCo/otto-gfx.git
+[submodule "deps/otto-sdk"]
+	path = deps/otto-sdk
+	url = git@github.com:NextThingCo/otto-sdk.git
