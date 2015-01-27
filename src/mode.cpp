@@ -1,5 +1,7 @@
 #include "gfx.hpp"
 
+#include <iostream>
+
 extern "C" {
   int init();
   int shutdown();
@@ -7,6 +9,7 @@ extern "C" {
 }
 
 int init() {
+  std::cout << "HELLO!!!" << std::endl;
   return 0;
 }
 
