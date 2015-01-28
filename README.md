@@ -14,3 +14,9 @@ Then from the build directory you can run `make`.
 ```
 make
 ```
+
+## Running
+
+```
+sudo deps/otto-sdk/build/main `pwd`/build/libotto_test_mode.so
+```
