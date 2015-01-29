@@ -11,6 +11,7 @@ add_subdirectory(${OTTO_GFX})
 include_directories(
   ${OTTO_GFX}/deps/Choreograph/src
   ${OTTO_GFX}/deps/nanosvg/src
+  ${OTTO_GFX}/deps/glm/glm
   ${OTTO_GFX}/src)
 
 include_directories(SYSTEM "/opt/vc/include") # VideoCore
