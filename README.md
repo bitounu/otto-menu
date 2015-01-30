@@ -14,6 +14,16 @@ Then from the build directory you can run `make`.
 ```
 make
 ```
+### Build otto-sdk
+
+Until otto-sdk moves to cmake it needs to be built on it's own.
+
+```
+cd deps/otto-sdk
+export CC=clang
+export CXX=clang++
+make
+```
 
 ## Running
 
