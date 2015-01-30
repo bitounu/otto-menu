@@ -31,7 +31,6 @@ static float regularPolyRadius(float sideLen, uint32_t numSides) {
 }
 
 static std::array<std::shared_ptr<NSVGimage>, 6> numbers;
-// static std::array<Tile, 6> tiles;
 static float tileDiameter = screenWidth * 0.95f;
 static float wheelEdgeLen = screenWidth * 1.1f;
 static float wheelRadius = regularPolyRadius(wheelEdgeLen, 6);
@@ -43,17 +42,6 @@ int init() {
     auto img = nsvgParseFromFile(filename.c_str(), "px", 96);
     numbers[i] = std::shared_ptr<NSVGimage>(img, nsvgDelete);
   }
-
-  // // Init tiles
-  // {
-  //   float angle = 0.0f;
-  //   float angleIncr = (M_PI * 2.0f) / tiles.size();
-  //   for (auto &tile : tiles) {
-  //     tile.rotation = angle;
-  //     tile.position = rotate(vec2(-wheelRadius, 0.0f), angle);
-  //     angle += angleIncr;
-  //   }
-  // }
 
   return 0;
 }
@@ -74,29 +62,24 @@ int update() {
   vgClear(0, 0, 96, 96);
 
   setTransform(defaultMatrix);
-  translate(vec2(48, 48));
+  translate(48, 48);
 
-  translate(vec2(wheelRadius, 0));
+  translate(wheelRadius, 0);
   rotate(angle);
 
   strokeWidth(2.0f);
   strokeColor(1, 0, 0);
-
-  // beginPath();
-  // moveTo(0, 0);
-  // lineTo(-wheelRadius, 0);
-  // stroke();
 
   for (const auto &number : numbers) {
     pushTransform();
       translate(vec2(-wheelRadius, 0.0f));
 
       beginPath();
-      arc(0.0f, 0.0f, tileDiameter, tileDiameter, 0, M_PI * 2.0f);
+      arc(vec2(), vec2(tileDiameter), 0, M_PI * 2.0f);
       fillColor(0, 1, 0.5);
       fill();
 
-      translate(vec2(-48, -48));
+      translate(-48, -48);
       draw(number.get());
     popTransform();
 
@@ -118,8 +101,7 @@ int update() {
 
 int rotary_changed(int delta) {
   angle += delta * 0.02f;
-
   lastCrankTime = std::chrono::steady_clock::now();
-  // timeline.apply(&rotation).then<ch::RampTo>(rotation() + delta * 0.05f, 0.1f);
+
   return 0;
 }
