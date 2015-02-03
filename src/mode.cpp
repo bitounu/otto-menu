@@ -31,11 +31,6 @@ static bool wheelIsMoving = false;
 
 static const vec3 tileDefaultColor = { 0, 1, 1 };
 
-struct Tile {
-  Output<vec3> color = tileDefaultColor;
-  std::shared_ptr<NSVGimage> numberSvg;
-};
-
 struct AngularParticle {
   float angle = 0.0f;
   float anglePrev = angle;
@@ -63,6 +58,13 @@ struct AngularParticle {
     }
     angle = angle + (targetAngle - angle) * power;
   }
+};
+
+struct Tile {
+  Output<vec3> color = tileDefaultColor;
+  Output<float> scale = 1.0f;
+
+  std::shared_ptr<NSVGimage> numberSvg;
 };
 
 struct ModeData {
@@ -123,6 +125,7 @@ STAK_EXPORT int update() {
   for (const auto &tile : data.tiles) {
     pushTransform();
       translate(vec2(-wheelRadius, 0.0f));
+      scale(tile.scale());
 
       beginPath();
       circle(vec2(), tileDiameter * 0.5f);
@@ -139,12 +142,13 @@ STAK_EXPORT int update() {
   data.wheel.step();
 
   auto timeSinceLastCrank = frameTime - data.lastCrankTime;
-  if (timeSinceLastCrank > std::chrono::milliseconds(500)) {
+  if (timeSinceLastCrank > std::chrono::milliseconds(300)) {
     int tileIndex =
         std::fmod(std::round(data.wheel.angle / TWO_PI * 6.0f), 6.0f);
 
-    data.timeline.apply(&data.tiles[tileIndex].color)
-        .then<RampTo>(vec3(1, 1, 0), 0.2f);
+    auto &tile = data.tiles[tileIndex];
+    data.timeline.apply(&tile.color).then<RampTo>(vec3(1, 1, 0), 0.1f);
+    data.timeline.apply(&tile.scale).then<RampTo>(1.0f, 0.1f);
 
     data.wheel.spring(tileIndex / 6.0f * TWO_PI, 0.2f);
 
@@ -163,7 +167,8 @@ STAK_EXPORT int rotary_changed(int delta) {
   if (!wheelIsMoving) {
     wheelIsMoving = true;
     for (auto &tile : data.tiles) {
-      data.timeline.apply(&tile.color).then<RampTo>(tileDefaultColor, 1.0f);
+      data.timeline.apply(&tile.color).then<RampTo>(tileDefaultColor, 0.2f);
+      data.timeline.apply(&tile.scale).then<RampTo>(0.7f, 0.2f);
     }
   }
 
