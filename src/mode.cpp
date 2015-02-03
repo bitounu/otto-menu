@@ -36,11 +36,39 @@ struct Tile {
   std::shared_ptr<NSVGimage> numberSvg;
 };
 
+struct AngularParticle {
+  float angle = 0.0f;
+  float anglePrev = angle;
+
+  float friction = 0.0f;
+
+  void step() {
+    float vel = (angle - anglePrev) * (1.0f - friction);
+
+    anglePrev = angle;
+    angle = angle + vel;
+
+    // Wrap angle to the range 0-2pi. Assumes angle is not less than -2pi.
+    float wrappedAngle = std::fmod(angle + TWO_PI, TWO_PI);
+    if (wrappedAngle != angle) {
+      anglePrev += wrappedAngle - angle;
+      angle = wrappedAngle;
+    }
+  }
+
+  void spring(float targetAngle, float power) {
+    float angleDiff = std::abs(targetAngle - angle);
+    if (std::abs(angle - (targetAngle + TWO_PI)) < angleDiff) {
+      targetAngle += TWO_PI;
+    }
+    angle = angle + (targetAngle - angle) * power;
+  }
+};
+
 struct ModeData {
   ch::Timeline timeline;
 
-  float angle = 0.0f;
-  float anglePrev = angle;
+  AngularParticle wheel;
 
   std::chrono::steady_clock::time_point lastFrameTime;
   std::chrono::steady_clock::time_point lastCrankTime;
@@ -58,6 +86,7 @@ STAK_EXPORT int init() {
     data.tiles[i].numberSvg = std::shared_ptr<NSVGimage>(img, nsvgDelete);
   }
 
+  data.wheel.friction = 0.2f;
   data.lastFrameTime = std::chrono::steady_clock::now();
 
   return 0;
@@ -85,7 +114,7 @@ STAK_EXPORT int update() {
   translate(48, 48);
 
   translate(wheelRadius, 0.0f);
-  rotate(data.angle);
+  rotate(data.wheel.angle);
 
   strokeWidth(2.0f);
   strokeColor(1, 0, 0);
@@ -107,30 +136,17 @@ STAK_EXPORT int update() {
     rotate(angleIncr);
   }
 
-  float vel = (data.angle - data.anglePrev) * 0.8f;
-  data.anglePrev = data.angle;
-  data.angle = data.angle + vel;
-
-  // Wrap angle to the range 0-2pi. Assumes angle is not less than -2pi.
-  float wrappedAngle = std::fmod(data.angle + TWO_PI, TWO_PI);
-  if (wrappedAngle != data.angle) {
-    data.anglePrev += wrappedAngle - data.angle;
-    data.angle = wrappedAngle;
-  }
+  data.wheel.step();
 
   auto timeSinceLastCrank = frameTime - data.lastCrankTime;
   if (timeSinceLastCrank > std::chrono::milliseconds(500)) {
-    int tileIndex = std::fmod(std::round(data.angle / TWO_PI * 6.0f), 6.0f);
+    int tileIndex =
+        std::fmod(std::round(data.wheel.angle / TWO_PI * 6.0f), 6.0f);
 
     data.timeline.apply(&data.tiles[tileIndex].color)
         .then<RampTo>(vec3(1, 1, 0), 0.2f);
 
-    float goalAngle = tileIndex / 6.0f * TWO_PI;
-    float goalAngleDiff = std::abs(data.angle - goalAngle);
-    if (std::abs(data.angle - (goalAngle + TWO_PI)) < goalAngleDiff) {
-      goalAngle += TWO_PI;
-    }
-    data.angle = data.angle + (goalAngle - data.angle) * 0.2f;
+    data.wheel.spring(tileIndex / 6.0f * TWO_PI, 0.2f);
 
     wheelIsMoving = false;
   }
@@ -141,7 +157,7 @@ STAK_EXPORT int update() {
 }
 
 STAK_EXPORT int rotary_changed(int delta) {
-  data.angle += delta * 0.02f;
+  data.wheel.angle += delta * 0.02f;
   data.lastCrankTime = std::chrono::steady_clock::now();
 
   if (!wheelIsMoving) {
