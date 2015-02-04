@@ -91,6 +91,8 @@ STAK_EXPORT int init() {
   data.wheel.friction = 0.2f;
   data.lastFrameTime = std::chrono::steady_clock::now();
 
+  otto::initFontOCRA();
+
   return 0;
 }
 
@@ -122,6 +124,7 @@ STAK_EXPORT int update() {
   strokeColor(1, 0, 0);
 
   float angleIncr = -TWO_PI / 6.0f;
+  int i = 1;
   for (const auto &tile : data.tiles) {
     pushTransform();
       translate(vec2(-wheelRadius, 0.0f));
@@ -132,8 +135,9 @@ STAK_EXPORT int update() {
       fillColor(tile.color());
       fill();
 
-      translate(-48, -48);
-      draw(tile.numberSvg.get());
+      translate(-20, 20);
+      fillColor(0, 0, 0);
+      text(std::to_string(i++));
     popTransform();
 
     rotate(angleIncr);
@@ -143,8 +147,7 @@ STAK_EXPORT int update() {
 
   auto timeSinceLastCrank = frameTime - data.lastCrankTime;
   if (timeSinceLastCrank > std::chrono::milliseconds(300)) {
-    int tileIndex =
-        std::fmod(std::round(data.wheel.angle / TWO_PI * 6.0f), 6.0f);
+    int tileIndex = std::fmod(std::round(data.wheel.angle / TWO_PI * 6.0f), 6.0f);
 
     auto &tile = data.tiles[tileIndex];
     data.timeline.apply(&tile.color).then<RampTo>(vec3(1, 1, 0), 0.1f);
