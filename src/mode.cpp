@@ -91,7 +91,7 @@ STAK_EXPORT int init() {
   data.wheel.friction = 0.2f;
   data.lastFrameTime = std::chrono::steady_clock::now();
 
-  otto::initFontOCRA();
+  otto::loadFont("assets/232MKSD-round-light.ttf");
 
   return 0;
 }
@@ -135,7 +135,7 @@ STAK_EXPORT int update() {
       fillColor(tile.color());
       fill();
 
-      translate(-20, 20);
+      translate(-15, 20);
       fillColor(0, 0, 0);
       text(std::to_string(i++));
     popTransform();
