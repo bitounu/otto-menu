@@ -102,7 +102,7 @@ STAK_EXPORT int update() {
   using namespace otto;
   using namespace std::chrono;
 
-  static const mat3 defaultMatrix{ 0.0f,        -1.0f,        -0.0f,
+  static const mat3 defaultMatrix{ 0.0f,        -1.0f,        0.0f,
                                    -1.0f,       0.0f,         0.0f,
                                    screenWidth, screenHeight, 1.0f };
 
@@ -135,9 +135,10 @@ STAK_EXPORT int update() {
       fillColor(tile.color());
       fill();
 
-      translate(-15, 20);
+      // translate(-15, 20);
+      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0, 0, 0);
-      text(std::to_string(i++));
+      fillText(std::to_string(i++));
     popTransform();
 
     rotate(angleIncr);
