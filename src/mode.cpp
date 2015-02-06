@@ -63,8 +63,6 @@ struct AngularParticle {
 struct Tile {
   Output<vec3> color = tileDefaultColor;
   Output<float> scale = 1.0f;
-
-  std::shared_ptr<NSVGimage> numberSvg;
 };
 
 struct ModeData {
@@ -83,16 +81,9 @@ struct ModeData {
 static ModeData data;
 
 STAK_EXPORT int init() {
-  // Load number graphics
-  for (int i = 0; i < data.tiles.size(); ++i) {
-    auto filename = "assets/" + std::to_string(i + 1) + ".svg";
-    auto img = nsvgParseFromFile(filename.c_str(), "px", 96);
-    data.tiles[i].numberSvg = std::shared_ptr<NSVGimage>(img, nsvgDelete);
-  }
+  otto::loadFont("assets/232MKSD-round-light.ttf");
 
   data.wheel.friction = 0.2f;
-
-  otto::loadFont("assets/232MKSD-round-light.ttf");
 
   return 0;
 }
