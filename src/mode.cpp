@@ -23,13 +23,12 @@ static float regularPolyRadius(float sideLen, uint32_t numSides) {
   return sideLen / (2.0f * std::sin(M_PI / numSides));
 }
 
-static float tileDiameter = screenWidth * 0.95f;
-static float wheelEdgeLen = screenWidth * 1.1f;
-static float wheelRadius = regularPolyRadius(wheelEdgeLen, 6);
-
-static bool wheelIsMoving = false;
+static const float tileDiameter = screenWidth * 0.95f;
+static const float wheelEdgeLen = screenWidth * 1.1f;
+static const float wheelRadius = regularPolyRadius(wheelEdgeLen, 6);
 
 static const vec3 tileDefaultColor = { 0, 1, 1 };
+static const vec3 tileActiveColor = { 1, 1, 0 };
 
 struct AngularParticle {
   float angle = 0.0f;
@@ -76,6 +75,7 @@ struct ModeData {
   uint32_t frameCount = 0;
 
   std::array<Tile, 6> tiles;
+  Tile *activeTile = nullptr;
 };
 
 static ModeData data;
@@ -98,13 +98,13 @@ STAK_EXPORT int update(float dt) {
   if (timeSinceLastCrank > std::chrono::milliseconds(300)) {
     int tileIndex = std::fmod(std::round(data.wheel.angle / TWO_PI * 6.0f), 6.0f);
 
-    auto &tile = data.tiles[tileIndex];
-    data.timeline.apply(&tile.color).then<RampTo>(vec3(1, 1, 0), 0.1f);
-    data.timeline.apply(&tile.scale).then<RampTo>(1.0f, 0.1f);
+    if (!data.activeTile) {
+      data.activeTile = &data.tiles[tileIndex];
+      data.timeline.apply(&data.activeTile->color).then<RampTo>(tileActiveColor, 0.1f);
+      data.timeline.apply(&data.activeTile->scale).then<RampTo>(1.0f, 0.1f);
+    }
 
     data.wheel.spring(tileIndex / 6.0f * TWO_PI, 0.2f);
-
-    wheelIsMoving = false;
   }
 
   data.frameCount++;
@@ -164,13 +164,30 @@ STAK_EXPORT int crank_rotated(int amount) {
   data.wheel.angle += amount * 0.02f;
   data.lastCrankTime = std::chrono::steady_clock::now();
 
-  if (!wheelIsMoving) {
-    wheelIsMoving = true;
+  if (data.activeTile) {
+    data.activeTile = nullptr;
     for (auto &tile : data.tiles) {
       data.timeline.apply(&tile.color).then<RampTo>(tileDefaultColor, 0.2f);
       data.timeline.apply(&tile.scale).then<RampTo>(0.7f, 0.2f);
     }
   }
 
+  return 0;
+}
+
+STAK_EXPORT int shutter_button_pressed() {
+  if (data.activeTile) {
+    data.timeline.apply(&data.activeTile->scale)
+        .then<RampTo>(0.75f, 0.25f, EaseOutQuad())
+        .then<RampTo>(1.0f, 0.25f, EaseInQuad());
+    data.timeline.apply(&data.activeTile->color)
+        .then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad())
+        .then<RampTo>(tileActiveColor, 0.25f, EaseInQuad());
+  }
+
+  return 0;
+}
+
+STAK_EXPORT int shutter_button_released() {
   return 0;
 }
