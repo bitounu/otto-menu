@@ -75,6 +75,9 @@ struct ModeData {
   std::chrono::steady_clock::time_point lastFrameTime;
   std::chrono::steady_clock::time_point lastCrankTime;
 
+  float secondsPerFrame;
+  uint32_t frameCount = 0;
+
   std::array<Tile, 6> tiles;
 };
 
@@ -98,18 +101,45 @@ STAK_EXPORT int init() {
 
 STAK_EXPORT int shutdown() { return 0; }
 
-STAK_EXPORT int update() {
-  using namespace otto;
+STAK_EXPORT int update(float _dt) {
   using namespace std::chrono;
-
-  static const mat3 defaultMatrix{ 0.0f,        -1.0f,        0.0f,
-                                   -1.0f,       0.0f,         0.0f,
-                                   screenWidth, screenHeight, 1.0f };
 
   auto frameTime = steady_clock::now();
   auto dt = duration_cast<fsecs>(frameTime - data.lastFrameTime).count();
 
   data.timeline.step(dt);
+  data.wheel.step();
+
+  auto timeSinceLastCrank = frameTime - data.lastCrankTime;
+  if (timeSinceLastCrank > milliseconds(300)) {
+    int tileIndex = std::fmod(std::round(data.wheel.angle / TWO_PI * 6.0f), 6.0f);
+
+    auto &tile = data.tiles[tileIndex];
+    data.timeline.apply(&tile.color).then<RampTo>(vec3(1, 1, 0), 0.1f);
+    data.timeline.apply(&tile.scale).then<RampTo>(1.0f, 0.1f);
+
+    data.wheel.spring(tileIndex / 6.0f * TWO_PI, 0.2f);
+
+    wheelIsMoving = false;
+  }
+
+  data.lastFrameTime = frameTime;
+  data.frameCount++;
+
+  data.secondsPerFrame += dt;
+  if (data.frameCount % 60 == 0) {
+    std::cout << (1.0f / (data.secondsPerFrame / 60.0f)) << std::endl;
+    data.secondsPerFrame = 0.0f;
+  }
+
+  return 0;
+}
+
+STAK_EXPORT int draw() {
+  static const mat3 defaultMatrix{ 0.0f, -1.0f,       0.0f,         -1.0f, 0.0f,
+                                   0.0f, screenWidth, screenHeight, 1.0f };
+
+  using namespace otto;
 
   clearColor(0, 0, 0);
   clear(0, 0, 96, 96);
@@ -144,28 +174,11 @@ STAK_EXPORT int update() {
     rotate(angleIncr);
   }
 
-  data.wheel.step();
-
-  auto timeSinceLastCrank = frameTime - data.lastCrankTime;
-  if (timeSinceLastCrank > std::chrono::milliseconds(300)) {
-    int tileIndex = std::fmod(std::round(data.wheel.angle / TWO_PI * 6.0f), 6.0f);
-
-    auto &tile = data.tiles[tileIndex];
-    data.timeline.apply(&tile.color).then<RampTo>(vec3(1, 1, 0), 0.1f);
-    data.timeline.apply(&tile.scale).then<RampTo>(1.0f, 0.1f);
-
-    data.wheel.spring(tileIndex / 6.0f * TWO_PI, 0.2f);
-
-    wheelIsMoving = false;
-  }
-
-  data.lastFrameTime = frameTime;
-
   return 0;
 }
 
-STAK_EXPORT int rotary_changed(int delta) {
-  data.wheel.angle += delta * 0.02f;
+STAK_EXPORT int crank_rotated(int amount) {
+  data.wheel.angle += amount * 0.02f;
   data.lastCrankTime = std::chrono::steady_clock::now();
 
   if (!wheelIsMoving) {
