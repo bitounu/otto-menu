@@ -165,7 +165,6 @@ STAK_EXPORT int draw() {
       fillColor(tile.color());
       fill();
 
-      // translate(-15, 20);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0, 0, 0);
       fillText(std::to_string(i++));
