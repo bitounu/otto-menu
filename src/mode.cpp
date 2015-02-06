@@ -72,7 +72,6 @@ struct ModeData {
 
   AngularParticle wheel;
 
-  std::chrono::steady_clock::time_point lastFrameTime;
   std::chrono::steady_clock::time_point lastCrankTime;
 
   float secondsPerFrame;
@@ -92,7 +91,6 @@ STAK_EXPORT int init() {
   }
 
   data.wheel.friction = 0.2f;
-  data.lastFrameTime = std::chrono::steady_clock::now();
 
   otto::loadFont("assets/232MKSD-round-light.ttf");
 
@@ -101,17 +99,12 @@ STAK_EXPORT int init() {
 
 STAK_EXPORT int shutdown() { return 0; }
 
-STAK_EXPORT int update(float _dt) {
-  using namespace std::chrono;
-
-  auto frameTime = steady_clock::now();
-  auto dt = duration_cast<fsecs>(frameTime - data.lastFrameTime).count();
-
+STAK_EXPORT int update(float dt) {
   data.timeline.step(dt);
   data.wheel.step();
 
-  auto timeSinceLastCrank = frameTime - data.lastCrankTime;
-  if (timeSinceLastCrank > milliseconds(300)) {
+  auto timeSinceLastCrank = std::chrono::steady_clock::now() - data.lastCrankTime;
+  if (timeSinceLastCrank > std::chrono::milliseconds(300)) {
     int tileIndex = std::fmod(std::round(data.wheel.angle / TWO_PI * 6.0f), 6.0f);
 
     auto &tile = data.tiles[tileIndex];
@@ -123,7 +116,6 @@ STAK_EXPORT int update(float _dt) {
     wheelIsMoving = false;
   }
 
-  data.lastFrameTime = frameTime;
   data.frameCount++;
 
   data.secondsPerFrame += dt;
