@@ -79,6 +79,10 @@ struct Carousel {
     return std::fmod(std::round(rotation.angle / TWO_PI * tileCount), tileCount);
   }
 
+  void turn(float amount) {
+    rotation.angle += amount / tileCount;
+  }
+
   void step() { rotation.step(); }
 
   void draw(const std::function<void(int i)> &drawTileFn) {
@@ -128,13 +132,14 @@ STAK_EXPORT int update(float dt) {
   data.carousel.step();
 
   auto timeSinceLastCrank = std::chrono::steady_clock::now() - data.lastCrankTime;
-  if (timeSinceLastCrank > std::chrono::milliseconds(300)) {
+  if (timeSinceLastCrank > std::chrono::milliseconds(400)) {
     auto tileIndex = data.carousel.getActiveTileIndex();
 
     if (!data.activeTile) {
       data.activeTile = &data.tiles[tileIndex];
-      data.timeline.apply(&data.activeTile->color).then<RampTo>(tileActiveColor, 0.1f);
-      data.timeline.apply(&data.activeTile->scale).then<RampTo>(1.0f, 0.1f);
+      data.timeline.apply(&data.activeTile->color)
+          .then<RampTo>(tileActiveColor, 0.2f, EaseOutQuad());
+      data.timeline.apply(&data.activeTile->scale).then<RampTo>(1.0f, 0.2f, EaseOutQuad());
     }
 
     data.carousel.rotation.lerp(float(tileIndex) / data.carousel.tileCount * TWO_PI, 0.2f);
@@ -181,14 +186,14 @@ STAK_EXPORT int draw() {
 }
 
 STAK_EXPORT int crank_rotated(int amount) {
-  data.carousel.rotation.angle += amount * 0.02f;
+  data.carousel.turn(amount * 0.1f);
   data.lastCrankTime = std::chrono::steady_clock::now();
 
   if (data.activeTile) {
     data.activeTile = nullptr;
     for (auto &tile : data.tiles) {
-      data.timeline.apply(&tile.color).then<RampTo>(tileDefaultColor, 0.2f);
-      data.timeline.apply(&tile.scale).then<RampTo>(0.7f, 0.2f);
+      data.timeline.apply(&tile.color).then<RampTo>(tileDefaultColor, 0.4f, EaseInOutQuad());
+      data.timeline.apply(&tile.scale).then<RampTo>(0.7f, 0.4f, EaseInOutQuad());
     }
   }
 
@@ -196,18 +201,31 @@ STAK_EXPORT int crank_rotated(int amount) {
 }
 
 STAK_EXPORT int shutter_button_pressed() {
+  std::cout << "pressed" << std::endl;
   if (data.activeTile) {
-    data.timeline.apply(&data.activeTile->scale)
-        .then<RampTo>(0.75f, 0.25f, EaseOutQuad())
-        .then<RampTo>(1.0f, 0.25f, EaseInQuad());
-    data.timeline.apply(&data.activeTile->color)
-        .then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad())
-        .then<RampTo>(tileActiveColor, 0.25f, EaseInQuad());
+    data.timeline.apply(&data.activeTile->scale).then<RampTo>(0.75f, 0.25f, EaseOutQuad());
+    data.timeline.apply(&data.activeTile->color).then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad());
   }
 
   return 0;
 }
 
 STAK_EXPORT int shutter_button_released() {
+  std::cout << "released" << std::endl;
+  if (data.activeTile) {
+    data.timeline.apply(&data.activeTile->scale).then<RampTo>(1.0f, 0.25f, EaseInQuad());
+    data.timeline.apply(&data.activeTile->color).then<RampTo>(tileActiveColor, 0.25f, EaseInQuad());
+  }
+
+  return 0;
+}
+
+STAK_EXPORT int power_button_pressed() {
+  std::cout << "power pressed" << std::endl;
+  return 0;
+}
+
+STAK_EXPORT int power_button_released() {
+  std::cout << "power released" << std::endl;
   return 0;
 }
