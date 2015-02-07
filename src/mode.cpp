@@ -6,11 +6,13 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <functional>
 
 #define STAK_EXPORT extern "C"
 
 using namespace glm;
 using namespace choreograph;
+using namespace otto;
 
 using fsecs = std::chrono::duration<float>;
 
@@ -19,16 +21,21 @@ static const float TWO_PI = M_PI * 2.0f;
 static const float screenWidth = 96.0f;
 static const float screenHeight = 96.0f;
 
+static const vec3 tileDefaultColor = { 0, 1, 1 };
+static const vec3 tileActiveColor = { 1, 1, 0 };
+
 static float regularPolyRadius(float sideLen, uint32_t numSides) {
   return sideLen / (2.0f * std::sin(M_PI / numSides));
 }
 
-static const float tileDiameter = screenWidth * 0.95f;
-static const float wheelEdgeLen = screenWidth * 1.1f;
-static const float wheelRadius = regularPolyRadius(wheelEdgeLen, 6);
-
-static const vec3 tileDefaultColor = { 0, 1, 1 };
-static const vec3 tileActiveColor = { 1, 1, 0 };
+// Interpolate between two angles, assuming both angles are in the range 0-2pi.
+static float lerpAngular(float angle, float targetAngle, float t) {
+  auto angleDiff = std::abs(targetAngle - angle);
+  if (std::abs(angle - (targetAngle + TWO_PI)) < angleDiff) {
+    targetAngle += TWO_PI;
+  }
+  return angle + (targetAngle - angle) * t;
+}
 
 struct AngularParticle {
   float angle = 0.0f;
@@ -37,25 +44,21 @@ struct AngularParticle {
   float friction = 0.0f;
 
   void step() {
-    float vel = (angle - anglePrev) * (1.0f - friction);
+    auto vel = (angle - anglePrev) * (1.0f - friction);
 
     anglePrev = angle;
     angle = angle + vel;
 
     // Wrap angle to the range 0-2pi. Assumes angle is not less than -2pi.
-    float wrappedAngle = std::fmod(angle + TWO_PI, TWO_PI);
+    auto wrappedAngle = std::fmod(angle + TWO_PI, TWO_PI);
     if (wrappedAngle != angle) {
       anglePrev += wrappedAngle - angle;
       angle = wrappedAngle;
     }
   }
 
-  void spring(float targetAngle, float power) {
-    float angleDiff = std::abs(targetAngle - angle);
-    if (std::abs(angle - (targetAngle + TWO_PI)) < angleDiff) {
-      targetAngle += TWO_PI;
-    }
-    angle = angle + (targetAngle - angle) * power;
+  void lerp(float targetAngle, float t) {
+    angle = lerpAngular(angle, targetAngle, t);
   }
 };
 
@@ -64,10 +67,42 @@ struct Tile {
   Output<float> scale = 1.0f;
 };
 
+struct Carousel {
+  AngularParticle rotation;
+
+  uint32_t tileCount = 6;
+  float tileRadius = 48.0f;
+
+  Carousel() { rotation.friction = 0.2f; }
+
+  uint32_t getActiveTileIndex() {
+    return std::fmod(std::round(rotation.angle / TWO_PI * tileCount), tileCount);
+  }
+
+  void step() { rotation.step(); }
+
+  void draw(const std::function<void(int i)> &drawTileFn) {
+    auto radius = regularPolyRadius(tileRadius * 2.2f, tileCount);
+    auto angleIncr = -TWO_PI / tileCount;
+
+    pushTransform();
+      translate(radius, 0.0f);
+      rotate(rotation.angle);
+      for (int i = 0; i < tileCount; ++i) {
+        pushTransform();
+          translate(-radius, 0.0f);
+          drawTileFn(i);
+        popTransform();
+        rotate(angleIncr);
+      }
+    popTransform();
+  }
+};
+
 struct ModeData {
   ch::Timeline timeline;
 
-  AngularParticle wheel;
+  Carousel carousel;
 
   std::chrono::steady_clock::time_point lastCrankTime;
 
@@ -81,9 +116,7 @@ struct ModeData {
 static ModeData data;
 
 STAK_EXPORT int init() {
-  otto::loadFont("assets/232MKSD-round-light.ttf");
-
-  data.wheel.friction = 0.2f;
+  loadFont("assets/232MKSD-round-light.ttf");
 
   return 0;
 }
@@ -92,11 +125,11 @@ STAK_EXPORT int shutdown() { return 0; }
 
 STAK_EXPORT int update(float dt) {
   data.timeline.step(dt);
-  data.wheel.step();
+  data.carousel.step();
 
   auto timeSinceLastCrank = std::chrono::steady_clock::now() - data.lastCrankTime;
   if (timeSinceLastCrank > std::chrono::milliseconds(300)) {
-    int tileIndex = std::fmod(std::round(data.wheel.angle / TWO_PI * 6.0f), 6.0f);
+    auto tileIndex = data.carousel.getActiveTileIndex();
 
     if (!data.activeTile) {
       data.activeTile = &data.tiles[tileIndex];
@@ -104,7 +137,7 @@ STAK_EXPORT int update(float dt) {
       data.timeline.apply(&data.activeTile->scale).then<RampTo>(1.0f, 0.1f);
     }
 
-    data.wheel.spring(tileIndex / 6.0f * TWO_PI, 0.2f);
+    data.carousel.rotation.lerp(float(tileIndex) / data.carousel.tileCount * TWO_PI, 0.2f);
   }
 
   data.frameCount++;
@@ -122,46 +155,33 @@ STAK_EXPORT int draw() {
   static const mat3 defaultMatrix{ 0.0f, -1.0f,       0.0f,         -1.0f, 0.0f,
                                    0.0f, screenWidth, screenHeight, 1.0f };
 
-  using namespace otto;
-
   clearColor(0, 0, 0);
   clear(0, 0, 96, 96);
 
   setTransform(defaultMatrix);
   translate(48, 48);
 
-  translate(wheelRadius, 0.0f);
-  rotate(data.wheel.angle);
+  data.carousel.draw([&](int i) {
+    const auto &tile = data.tiles[i];
 
-  strokeWidth(2.0f);
-  strokeColor(1, 0, 0);
+    scale(tile.scale());
 
-  float angleIncr = -TWO_PI / 6.0f;
-  int i = 1;
-  for (const auto &tile : data.tiles) {
-    pushTransform();
-      translate(vec2(-wheelRadius, 0.0f));
-      scale(tile.scale());
+    beginPath();
+    circle(vec2(), 44);
+    fillColor(tile.color());
+    fill();
 
-      beginPath();
-      circle(vec2(), tileDiameter * 0.5f);
-      fillColor(tile.color());
-      fill();
-
-      fontSize(42);
-      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
-      fillColor(0, 0, 0);
-      fillText(std::to_string(i++));
-    popTransform();
-
-    rotate(angleIncr);
-  }
+    fontSize(42);
+    textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
+    fillColor(0, 0, 0);
+    fillText(std::to_string(i + 1));
+  });
 
   return 0;
 }
 
 STAK_EXPORT int crank_rotated(int amount) {
-  data.wheel.angle += amount * 0.02f;
+  data.carousel.rotation.angle += amount * 0.02f;
   data.lastCrankTime = std::chrono::steady_clock::now();
 
   if (data.activeTile) {
