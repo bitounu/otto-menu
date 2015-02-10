@@ -27,6 +27,8 @@ make
 
 ## Running
 
+Run the otto-sdk `main` with the menu and mode libs:
+
 ```
-sudo deps/otto-sdk/build/main `pwd`/build/libotto_test_mode.so
+sudo deps/otto-sdk/build/main `pwd`/build/libotto_menu.so <mode-library.so>
 ```
