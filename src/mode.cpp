@@ -58,9 +58,7 @@ struct AngularParticle {
     }
   }
 
-  void lerp(float targetAngle, float t) {
-    angle = lerpAngular(angle, targetAngle, t);
-  }
+  void lerp(float targetAngle, float t) { angle = lerpAngular(angle, targetAngle, t); }
 };
 
 struct Tile {
@@ -80,9 +78,7 @@ struct Carousel {
     return std::fmod(std::round(rotation.angle / TWO_PI * tileCount), tileCount);
   }
 
-  void turn(float amount) {
-    rotation.angle += amount / tileCount;
-  }
+  void turn(float amount) { rotation.angle += amount / tileCount; }
 
   void step() { rotation.step(); }
 
@@ -91,15 +87,15 @@ struct Carousel {
     auto angleIncr = -TWO_PI / tileCount;
 
     pushTransform();
-      translate(radius, 0.0f);
-      rotate(rotation.angle);
-      for (int i = 0; i < tileCount; ++i) {
-        pushTransform();
-          translate(-radius, 0.0f);
-          drawTileFn(i);
-        popTransform();
-        rotate(angleIncr);
-      }
+    translate(radius, 0.0f);
+    rotate(rotation.angle);
+    for (int i = 0; i < tileCount; ++i) {
+      pushTransform();
+      translate(-radius, 0.0f);
+      drawTileFn(i);
+      popTransform();
+      rotate(angleIncr);
+    }
     popTransform();
   }
 };
@@ -126,7 +122,9 @@ STAK_EXPORT int init() {
   return 0;
 }
 
-STAK_EXPORT int shutdown() { return 0; }
+STAK_EXPORT int shutdown() {
+  return 0;
+}
 
 STAK_EXPORT int update(float dt) {
   data.timeline.step(dt);
