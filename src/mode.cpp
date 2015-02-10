@@ -2,6 +2,7 @@
 #include "gtx/rotate_vector.hpp"
 #include "nanosvg.h"
 #include "choreograph/Choreograph.h"
+#include "stak.h"
 
 #include <iostream>
 #include <vector>
@@ -211,6 +212,8 @@ STAK_EXPORT int shutter_button_pressed() {
 }
 
 STAK_EXPORT int shutter_button_released() {
+  stak_activate_mode();
+
   std::cout << "released" << std::endl;
   if (data.activeTile) {
     data.timeline.apply(&data.activeTile->scale).then<RampTo>(1.0f, 0.25f, EaseInQuad());
@@ -227,5 +230,15 @@ STAK_EXPORT int power_button_pressed() {
 
 STAK_EXPORT int power_button_released() {
   std::cout << "power released" << std::endl;
+  return 0;
+}
+
+STAK_EXPORT int crank_pressed() {
+  std::cout << "crank pressed" << std::endl;
+  return 0;
+}
+
+STAK_EXPORT int crank_released() {
+  std::cout << "crank released" << std::endl;
   return 0;
 }
