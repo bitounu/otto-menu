@@ -4,3 +4,6 @@
 [submodule "deps/otto-sdk"]
 	path = deps/otto-sdk
 	url = git@github.com:NextThingCo/otto-sdk.git
+[submodule "deps/Choreograph"]
+	path = deps/Choreograph
+	url = https://github.com/sansumbrella/Choreograph.git
