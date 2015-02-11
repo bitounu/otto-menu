@@ -4,10 +4,12 @@
 #include "choreograph/Choreograph.h"
 #include "stak.h"
 
-#include <iostream>
 #include <vector>
 #include <chrono>
 #include <functional>
+
+// Debug
+#include <iostream>
 
 #define STAK_EXPORT extern "C"
 
@@ -165,7 +167,13 @@ STAK_EXPORT int init() {
       fontSize(28);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0, 0, 0);
-      fillText("mode");
+      fillText("mdge");
+
+      beginPath();
+      rect(getTextBounds("mdge"));
+      strokeWidth(2);
+      strokeColor(1, 0, 0);
+      stroke();
     };
   }
 
@@ -176,7 +184,13 @@ STAK_EXPORT int init() {
       fontSize(34);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0, 0, 0);
-      fillText("off");
+      fillText("oTTo");
+
+      beginPath();
+      rect(getTextBounds("oTTo"));
+      strokeWidth(2);
+      strokeColor(1, 0, 0);
+      stroke();
     };
   }
 
@@ -219,8 +233,7 @@ STAK_EXPORT int update(float dt) {
 }
 
 STAK_EXPORT int draw() {
-  static const mat3 defaultMatrix{ 0.0f, -1.0f,       0.0f,         -1.0f, 0.0f,
-                                   0.0f, screenWidth, screenHeight, 1.0f };
+  static const mat3 defaultMatrix{ 0.0, -1.0, 0.0, 1.0, -0.0, 0.0, 0.0, screenHeight, 1.0 };
 
   clearColor(0, 0, 0);
   clear(0, 0, 96, 96);
@@ -240,7 +253,7 @@ STAK_EXPORT int draw() {
 STAK_EXPORT int crank_rotated(int amount) {
   auto &menu = *mode.activeMenu;
 
-  menu.carousel.turn(amount * 0.1f);
+  menu.carousel.turn(amount * -0.1f);
   mode.lastCrankTime = std::chrono::steady_clock::now();
 
   if (menu.activeItem) {
