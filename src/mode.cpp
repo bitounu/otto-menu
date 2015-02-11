@@ -122,7 +122,7 @@ struct Menu {
   MenuItem *activeItem = nullptr;
 };
 
-struct TestMode {
+struct MenuMode {
   ch::Timeline timeline;
 
   std::unique_ptr<Menu> rootMenu;
@@ -135,9 +135,20 @@ struct TestMode {
 };
 
 
-static TestMode mode;
+static MenuMode mode;
+
+static void fillTextFitToWidth(const std::string &text, float width) {
+  fontSize(1.0f);
+  auto textWidth = getTextBounds(text).size.x;
+  fontSize(width / textWidth);
+  fillText(text);
+}
 
 STAK_EXPORT int init() {
+  // TODO(ryan): Move this to otto-sdk, along with the matrix setup code.
+  // NOTE(ryan): Setting the screen layout doesn't seem to have any effect on the current backend.
+  vgSeti(VG_SCREEN_LAYOUT, VG_PIXEL_LAYOUT_RGB_VERTICAL);
+
   loadFont("assets/232MKSD-round-light.ttf");
 
   mode.rootMenu = std::make_unique<Menu>();
@@ -153,10 +164,9 @@ STAK_EXPORT int init() {
     auto wifi = makeItem();
     wifi->draw = [](const MenuItem &item) {
       MenuItem::defaultDraw(item);
-      fontSize(34);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0, 0, 0);
-      fillText("wifi");
+      fillTextFitToWidth("wifi", screenWidth * 0.65f);
     };
   }
 
@@ -164,16 +174,9 @@ STAK_EXPORT int init() {
     auto item = makeItem();
     item->draw = [](const MenuItem &item) {
       MenuItem::defaultDraw(item);
-      fontSize(28);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0, 0, 0);
-      fillText("mdge");
-
-      beginPath();
-      rect(getTextBounds("mdge"));
-      strokeWidth(2);
-      strokeColor(1, 0, 0);
-      stroke();
+      fillTextFitToWidth("hello!", screenWidth * 0.65f);
     };
   }
 
@@ -181,16 +184,9 @@ STAK_EXPORT int init() {
     auto item = makeItem();
     item->draw = [](const MenuItem &item) {
       MenuItem::defaultDraw(item);
-      fontSize(34);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0, 0, 0);
-      fillText("oTTo");
-
-      beginPath();
-      rect(getTextBounds("oTTo"));
-      strokeWidth(2);
-      strokeColor(1, 0, 0);
-      stroke();
+      fillTextFitToWidth("bye", screenWidth * 0.65f);
     };
   }
 
