@@ -15,8 +15,6 @@ using namespace glm;
 using namespace choreograph;
 using namespace otto;
 
-using fsecs = std::chrono::duration<float>;
-
 static const float TWO_PI = M_PI * 2.0f;
 
 static const float screenWidth = 96.0f;
@@ -61,15 +59,10 @@ struct AngularParticle {
   void lerp(float targetAngle, float t) { angle = lerpAngular(angle, targetAngle, t); }
 };
 
-struct Tile {
-  Output<vec3> color = tileDefaultColor;
-  Output<float> scale = 1.0f;
-};
-
 struct Carousel {
   AngularParticle rotation;
 
-  uint32_t tileCount = 6;
+  uint32_t tileCount = 2;
   float tileRadius = 48.0f;
 
   Carousel() { rotation.friction = 0.2f; }
@@ -100,24 +93,92 @@ struct Carousel {
   }
 };
 
-struct ModeData {
+class Menu;
+
+struct MenuItem {
+  Output<vec3> color = tileDefaultColor;
+  Output<float> scale = 1.0f;
+
+  static void defaultDraw(const MenuItem &item) {
+    beginPath();
+    circle(vec2(), 44);
+    fillColor(item.color());
+    fill();
+  }
+  static void defaultAction(const MenuItem &item) {}
+
+  std::function<void(const MenuItem &)> draw = defaultDraw;
+  std::function<void(const MenuItem &)> action = defaultAction;
+
+  std::unique_ptr<Menu> subMenu;
+};
+
+struct Menu {
+  Carousel carousel;
+
+  std::vector<std::unique_ptr<MenuItem>> items;
+  MenuItem *activeItem = nullptr;
+};
+
+struct TestMode {
   ch::Timeline timeline;
 
-  Carousel carousel;
+  std::unique_ptr<Menu> rootMenu;
+  Menu *activeMenu = nullptr;
 
   std::chrono::steady_clock::time_point lastCrankTime;
 
   float secondsPerFrame;
   uint32_t frameCount = 0;
-
-  std::array<Tile, 6> tiles;
-  Tile *activeTile = nullptr;
 };
 
-static ModeData data;
+
+static TestMode mode;
 
 STAK_EXPORT int init() {
   loadFont("assets/232MKSD-round-light.ttf");
+
+  mode.rootMenu = std::make_unique<Menu>();
+  mode.activeMenu = mode.rootMenu.get();
+
+  auto makeItem = [&] {
+    mode.rootMenu->items.emplace_back(new MenuItem());
+    mode.rootMenu->carousel.tileCount = mode.rootMenu->items.size();
+    return mode.rootMenu->items.back().get();
+  };
+
+  {
+    auto wifi = makeItem();
+    wifi->draw = [](const MenuItem &item) {
+      MenuItem::defaultDraw(item);
+      fontSize(34);
+      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
+      fillColor(0, 0, 0);
+      fillText("wifi");
+    };
+  }
+
+  {
+    auto item = makeItem();
+    item->draw = [](const MenuItem &item) {
+      MenuItem::defaultDraw(item);
+      fontSize(28);
+      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
+      fillColor(0, 0, 0);
+      fillText("mode");
+    };
+  }
+
+  {
+    auto item = makeItem();
+    item->draw = [](const MenuItem &item) {
+      MenuItem::defaultDraw(item);
+      fontSize(34);
+      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
+      fillColor(0, 0, 0);
+      fillText("off");
+    };
+  }
 
   return 0;
 }
@@ -127,29 +188,31 @@ STAK_EXPORT int shutdown() {
 }
 
 STAK_EXPORT int update(float dt) {
-  data.timeline.step(dt);
-  data.carousel.step();
+  auto &menu = *mode.activeMenu;
 
-  auto timeSinceLastCrank = std::chrono::steady_clock::now() - data.lastCrankTime;
+  mode.timeline.step(dt);
+  menu.carousel.step();
+
+  auto timeSinceLastCrank = std::chrono::steady_clock::now() - mode.lastCrankTime;
   if (timeSinceLastCrank > std::chrono::milliseconds(400)) {
-    auto tileIndex = data.carousel.getActiveTileIndex();
+    auto tileIndex = menu.carousel.getActiveTileIndex();
 
-    if (!data.activeTile) {
-      data.activeTile = &data.tiles[tileIndex];
-      data.timeline.apply(&data.activeTile->color)
+    if (!menu.activeItem) {
+      menu.activeItem = menu.items[tileIndex].get();
+      mode.timeline.apply(&menu.activeItem->color)
           .then<RampTo>(tileActiveColor, 0.2f, EaseOutQuad());
-      data.timeline.apply(&data.activeTile->scale).then<RampTo>(1.0f, 0.2f, EaseOutQuad());
+      mode.timeline.apply(&menu.activeItem->scale).then<RampTo>(1.0f, 0.2f, EaseOutQuad());
     }
 
-    data.carousel.rotation.lerp(float(tileIndex) / data.carousel.tileCount * TWO_PI, 0.2f);
+    menu.carousel.rotation.lerp(float(tileIndex) / menu.carousel.tileCount * TWO_PI, 0.2f);
   }
 
-  data.frameCount++;
+  mode.frameCount++;
 
-  data.secondsPerFrame += dt;
-  if (data.frameCount % 60 == 0) {
-    std::cout << (1.0f / (data.secondsPerFrame / 60.0f)) << std::endl;
-    data.secondsPerFrame = 0.0f;
+  mode.secondsPerFrame += dt;
+  if (mode.frameCount % 60 == 0) {
+    std::cout << (1.0f / (mode.secondsPerFrame / 60.0f)) << " fps" << std::endl;
+    mode.secondsPerFrame = 0.0f;
   }
 
   return 0;
@@ -165,34 +228,26 @@ STAK_EXPORT int draw() {
   setTransform(defaultMatrix);
   translate(48, 48);
 
-  data.carousel.draw([&](int i) {
-    const auto &tile = data.tiles[i];
-
-    scale(tile.scale());
-
-    beginPath();
-    circle(vec2(), 44);
-    fillColor(tile.color());
-    fill();
-
-    fontSize(42);
-    textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
-    fillColor(0, 0, 0);
-    fillText(std::to_string(i + 1));
+  mode.activeMenu->carousel.draw([&](int i) {
+    const auto &item = *mode.activeMenu->items[i];
+    scale(item.scale());
+    item.draw(item);
   });
 
   return 0;
 }
 
 STAK_EXPORT int crank_rotated(int amount) {
-  data.carousel.turn(amount * 0.1f);
-  data.lastCrankTime = std::chrono::steady_clock::now();
+  auto &menu = *mode.activeMenu;
 
-  if (data.activeTile) {
-    data.activeTile = nullptr;
-    for (auto &tile : data.tiles) {
-      data.timeline.apply(&tile.color).then<RampTo>(tileDefaultColor, 0.4f, EaseInOutQuad());
-      data.timeline.apply(&tile.scale).then<RampTo>(0.7f, 0.4f, EaseInOutQuad());
+  menu.carousel.turn(amount * 0.1f);
+  mode.lastCrankTime = std::chrono::steady_clock::now();
+
+  if (menu.activeItem) {
+    menu.activeItem = nullptr;
+    for (auto &item : menu.items) {
+      mode.timeline.apply(&item->color).then<RampTo>(tileDefaultColor, 0.4f, EaseInOutQuad());
+      mode.timeline.apply(&item->scale).then<RampTo>(0.7f, 0.4f, EaseInOutQuad());
     }
   }
 
@@ -201,33 +256,27 @@ STAK_EXPORT int crank_rotated(int amount) {
 
 STAK_EXPORT int shutter_button_pressed() {
   std::cout << "pressed" << std::endl;
-  if (data.activeTile) {
-    data.timeline.apply(&data.activeTile->scale).then<RampTo>(0.75f, 0.25f, EaseOutQuad());
-    data.timeline.apply(&data.activeTile->color).then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad());
+
+  auto activeItem = mode.activeMenu->activeItem;
+  if (activeItem) {
+    mode.timeline.apply(&activeItem->scale).then<RampTo>(0.75f, 0.25f, EaseOutQuad());
+    mode.timeline.apply(&activeItem->color).then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad());
   }
 
   return 0;
 }
 
 STAK_EXPORT int shutter_button_released() {
-  stak_activate_mode();
+  // stak_activate_mode();
 
   std::cout << "released" << std::endl;
-  if (data.activeTile) {
-    data.timeline.apply(&data.activeTile->scale).then<RampTo>(1.0f, 0.25f, EaseInQuad());
-    data.timeline.apply(&data.activeTile->color).then<RampTo>(tileActiveColor, 0.25f, EaseInQuad());
+
+  auto activeItem = mode.activeMenu->activeItem;
+  if (activeItem) {
+    mode.timeline.apply(&activeItem->scale).then<RampTo>(1.0f, 0.25f, EaseInQuad());
+    mode.timeline.apply(&activeItem->color).then<RampTo>(tileActiveColor, 0.25f, EaseInQuad());
   }
 
-  return 0;
-}
-
-STAK_EXPORT int power_button_pressed() {
-  std::cout << "power pressed" << std::endl;
-  return 0;
-}
-
-STAK_EXPORT int power_button_released() {
-  std::cout << "power released" << std::endl;
   return 0;
 }
 
