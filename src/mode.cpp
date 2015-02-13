@@ -79,7 +79,7 @@ struct Carousel {
 
   void step() { rotation.step(); }
 
-  void draw(const std::function<void(int i)> &drawTile) {
+  void draw(const std::function<void(int i)> &drawTile) const {
     auto radius = regularPolyRadius(tileRadius * 2.2f, tileCount);
     auto angleIncr = -TWO_PI / tileCount;
 
@@ -99,9 +99,11 @@ struct Carousel {
 
 class Menu;
 
+static void activateMenu(Menu *menu, bool pushToStack = true);
+
 struct MenuItem {
   Output<vec3> color = tileDefaultColor;
-  Output<float> scale = 1.0f;
+  Output<float> scale = 0.7f;
 
   static void defaultHandleDraw(const MenuItem &item) {
     beginPath();
@@ -111,33 +113,47 @@ struct MenuItem {
   }
 
   static void defaultHandleSelect(MenuItem &item) {
-    timeline.apply(&item.color).then<RampTo>(tileActiveColor, 0.2f, EaseOutQuad());
-    timeline.apply(&item.scale).then<RampTo>(1.0f, 0.2f, EaseOutQuad());
+    timeline.apply(&item.color).then<RampTo>(tileActiveColor, 0.2f, EaseInOutQuad());
+    timeline.apply(&item.scale).then<RampTo>(1.0f, 0.2f, EaseInOutQuad());
   }
 
   static void defaultHandleDeselect(MenuItem &item) {
-    timeline.apply(&item.color).then<RampTo>(tileDefaultColor, 0.4f, EaseInOutQuad());
-    timeline.apply(&item.scale).then<RampTo>(0.7f, 0.4f, EaseInOutQuad());
+    timeline.apply(&item.color).then<RampTo>(tileDefaultColor, 0.2f, EaseInOutQuad());
+    timeline.apply(&item.scale).then<RampTo>(0.7f, 0.2f, EaseInOutQuad());
+  }
+
+  static void defaultHandleActivate(MenuItem &item) {
+    if (item.subMenu) activateMenu(item.subMenu.get());
   }
 
   std::function<void(const MenuItem &)> handleDraw = defaultHandleDraw;
   std::function<void(MenuItem &)> handleSelect = defaultHandleSelect;
   std::function<void(MenuItem &)> handleDeselect = defaultHandleDeselect;
-  std::function<void(MenuItem &)> handleActivate;
+  std::function<void(MenuItem &)> handleActivate = defaultHandleActivate;
 
   std::unique_ptr<Menu> subMenu;
 };
 
 struct Menu {
+  Output<vec2> position;
   Carousel carousel;
 
   std::vector<std::unique_ptr<MenuItem>> items;
   MenuItem *activeItem = nullptr;
+
+  MenuItem *makeItem() {
+    items.emplace_back(new MenuItem());
+    carousel.tileCount = items.size();
+    return items.back().get();
+  }
 };
 
 struct MenuMode {
-  std::unique_ptr<Menu> rootMenu;
+  std::unique_ptr<Menu> rootMenu = std::make_unique<Menu>();
+
+  std::vector<Menu *> menuStack;
   Menu *activeMenu = nullptr;
+  Menu *deactivatingMenu = nullptr;
 
   std::chrono::steady_clock::time_point lastCrankTime;
 
@@ -145,8 +161,38 @@ struct MenuMode {
   uint32_t frameCount = 0;
 };
 
-
 static MenuMode mode;
+
+static void activateMenu(Menu *menu, bool pushToStack) {
+  // NOTE(ryan): Bail if there's already an activation in progress. We do this here to make the
+  // user-facing API less error prone.
+  if (mode.deactivatingMenu) return;
+
+  // Deactivate previously active menu and animate out
+  {
+    mode.deactivatingMenu = mode.activeMenu;
+
+    timeline.apply(&mode.deactivatingMenu->position)
+        .then<RampTo>(vec2(-screenWidth, 0.0f), 0.75f, EaseInOutQuad())
+        .finishFn([&](Motion<vec2> &m) { mode.deactivatingMenu = nullptr; });
+
+    if (pushToStack) {
+      mode.menuStack.push_back(mode.deactivatingMenu);
+    }
+  }
+
+  // Animate in the new active menu
+  menu->position = vec2(screenWidth, 0.0f);
+  timeline.apply(&menu->position).then<RampTo>(vec2(), 0.75f, EaseInOutQuad());
+  mode.activeMenu = menu;
+}
+
+static void activatePreviousMenu() {
+  if (!mode.deactivatingMenu && mode.menuStack.size()) {
+    activateMenu(mode.menuStack.back(), false);
+    mode.menuStack.pop_back();
+  }
+}
 
 static void fillTextFitToWidth(const std::string &text, float width) {
   fontSize(1.0f);
@@ -158,35 +204,40 @@ static void fillTextFitToWidth(const std::string &text, float width) {
 STAK_EXPORT int init() {
   loadFont("assets/232MKSD-round-light.ttf");
 
-  mode.rootMenu = std::make_unique<Menu>();
   mode.activeMenu = mode.rootMenu.get();
 
-  auto makeItem = [&] {
-    mode.rootMenu->items.emplace_back(new MenuItem());
-    mode.rootMenu->carousel.tileCount = mode.rootMenu->items.size();
-    return mode.rootMenu->items.back().get();
-  };
-
   {
-    auto wifi = makeItem();
+    auto wifi = mode.rootMenu->makeItem();
+
     wifi->handleDraw = [](const MenuItem &item) {
       MenuItem::defaultHandleDraw(item);
+
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0, 0, 0);
       fillTextFitToWidth("oTo", screenWidth * 0.65f);
+
+      beginPath();
+      arc(0, 0, 52, 52, M_PI * -0.3f, M_PI * -0.7f);
+      strokeWidth(1.5f);
+      strokeColor(0, 0, 0);
+      stroke();
     };
     wifi->handleSelect = [](MenuItem &item) {
       MenuItem::defaultHandleSelect(item);
       std::cout << "wifi selected!" << std::endl;
     };
     wifi->handleActivate = [](MenuItem &item) {
-      MenuItem::defaultHandleDeselect(item);
+      MenuItem::defaultHandleActivate(item);
       std::cout << "wifi activated!" << std::endl;
     };
+
+    wifi->subMenu = std::make_unique<Menu>();
+    auto a = wifi->subMenu->makeItem();
+    auto b = wifi->subMenu->makeItem();
   }
 
   {
-    auto item = makeItem();
+    auto item = mode.rootMenu->makeItem();
     item->handleDraw = [](const MenuItem &item) {
       MenuItem::defaultHandleDraw(item);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
@@ -196,7 +247,7 @@ STAK_EXPORT int init() {
   }
 
   {
-    auto item = makeItem();
+    auto item = mode.rootMenu->makeItem();
     item->handleDraw = [](const MenuItem &item) {
       MenuItem::defaultHandleDraw(item);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
@@ -223,7 +274,7 @@ STAK_EXPORT int update(float dt) {
   menu.carousel.step();
 
   auto timeSinceLastCrank = std::chrono::steady_clock::now() - mode.lastCrankTime;
-  if (timeSinceLastCrank > std::chrono::milliseconds(400)) {
+  if (timeSinceLastCrank > std::chrono::milliseconds(350)) {
     auto tileIndex = menu.carousel.getActiveTileIndex();
 
     if (!menu.activeItem) {
@@ -254,11 +305,19 @@ STAK_EXPORT int draw() {
   setTransform(defaultMatrix);
   translate(48, 48);
 
-  mode.activeMenu->carousel.draw([&](int i) {
-    const auto &item = *mode.activeMenu->items[i];
-    scale(item.scale());
-    item.handleDraw(item);
-  });
+  auto drawMenu = [&](const Menu &menu) {
+    pushTransform();
+    translate(menu.position());
+    menu.carousel.draw([&](int i) {
+      const auto &item = *menu.items[i];
+      scale(item.scale());
+      item.handleDraw(item);
+    });
+    popTransform();
+  };
+
+  if (mode.deactivatingMenu) drawMenu(*mode.deactivatingMenu);
+  drawMenu(*mode.activeMenu);
 
   return 0;
 }
@@ -301,6 +360,17 @@ STAK_EXPORT int shutter_button_released() {
     timeline.apply(&activeItem->color).then<RampTo>(tileActiveColor, 0.25f, EaseInQuad());
   }
 
+  return 0;
+}
+
+STAK_EXPORT int power_button_pressed() {
+  std::cout << "power pressed" << std::endl;
+  activatePreviousMenu();
+  return 0;
+}
+
+STAK_EXPORT int power_button_released() {
+  std::cout << "power released" << std::endl;
   return 0;
 }
 
