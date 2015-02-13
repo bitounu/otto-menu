@@ -116,10 +116,18 @@ struct MenuItem {
     timeline.apply(&item.color).then<RampTo>(tileActiveColor, 0.2f, EaseInOutQuad());
     timeline.apply(&item.scale).then<RampTo>(1.0f, 0.2f, EaseInOutQuad());
   }
-
   static void defaultHandleDeselect(MenuItem &item) {
     timeline.apply(&item.color).then<RampTo>(tileDefaultColor, 0.2f, EaseInOutQuad());
     timeline.apply(&item.scale).then<RampTo>(0.7f, 0.2f, EaseInOutQuad());
+  }
+
+  static void defaultHandlePress(MenuItem &item) {
+    timeline.apply(&item.scale).then<RampTo>(0.75f, 0.25f, EaseOutQuad());
+    timeline.apply(&item.color).then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad());
+  }
+  static void defaultHandleRelease(MenuItem &item) {
+    timeline.apply(&item.scale).then<RampTo>(1.0f, 0.25f, EaseInQuad());
+    timeline.apply(&item.color).then<RampTo>(tileActiveColor, 0.25f, EaseInQuad());
   }
 
   static void defaultHandleActivate(MenuItem &item) {
@@ -129,6 +137,8 @@ struct MenuItem {
   std::function<void(const MenuItem &)> handleDraw = defaultHandleDraw;
   std::function<void(MenuItem &)> handleSelect = defaultHandleSelect;
   std::function<void(MenuItem &)> handleDeselect = defaultHandleDeselect;
+  std::function<void(MenuItem &)> handlePress = defaultHandlePress;
+  std::function<void(MenuItem &)> handleRelease = defaultHandleRelease;
   std::function<void(MenuItem &)> handleActivate = defaultHandleActivate;
 
   std::unique_ptr<Menu> subMenu;
@@ -173,7 +183,7 @@ static void activateMenu(Menu *menu, bool pushToStack) {
     mode.deactivatingMenu = mode.activeMenu;
 
     timeline.apply(&mode.deactivatingMenu->position)
-        .then<RampTo>(vec2(-screenWidth, 0.0f), 0.75f, EaseInOutQuad())
+        .then<RampTo>(vec2(-screenWidth, 0.0f), 0.5f, EaseInOutQuad())
         .finishFn([&](Motion<vec2> &m) { mode.deactivatingMenu = nullptr; });
 
     if (pushToStack) {
@@ -183,7 +193,7 @@ static void activateMenu(Menu *menu, bool pushToStack) {
 
   // Animate in the new active menu
   menu->position = vec2(screenWidth, 0.0f);
-  timeline.apply(&menu->position).then<RampTo>(vec2(), 0.75f, EaseInOutQuad());
+  timeline.apply(&menu->position).then<RampTo>(vec2(), 0.5f, EaseInOutQuad());
   mode.activeMenu = menu;
 }
 
@@ -205,6 +215,15 @@ STAK_EXPORT int init() {
   loadFont("assets/232MKSD-round-light.ttf");
 
   mode.activeMenu = mode.rootMenu.get();
+
+  auto makeTextDraw = [](const std::string &text, float width) {
+    return [=](const MenuItem &item) {
+      MenuItem::defaultHandleDraw(item);
+      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
+      fillColor(0, 0, 0);
+      fillTextFitToWidth(text, width);
+    };
+  };
 
   {
     auto wifi = mode.rootMenu->makeItem();
@@ -233,27 +252,22 @@ STAK_EXPORT int init() {
 
     wifi->subMenu = std::make_unique<Menu>();
     auto a = wifi->subMenu->makeItem();
+    a->handleDraw = makeTextDraw("on", screenWidth * 0.6f);
     auto b = wifi->subMenu->makeItem();
+    b->handleDraw = makeTextDraw("off", screenWidth * 0.6f);
+    auto c = wifi->subMenu->makeItem();
+    c->handleDraw = makeTextDraw("exit", screenWidth * 0.6f);
+    c->handleActivate = [](MenuItem &item) { activatePreviousMenu(); };
   }
 
   {
     auto item = mode.rootMenu->makeItem();
-    item->handleDraw = [](const MenuItem &item) {
-      MenuItem::defaultHandleDraw(item);
-      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
-      fillColor(0, 0, 0);
-      fillTextFitToWidth("hello!", screenWidth * 0.65f);
-    };
+    item->handleDraw = makeTextDraw("hello!", screenWidth * 0.65f);
   }
 
   {
     auto item = mode.rootMenu->makeItem();
-    item->handleDraw = [](const MenuItem &item) {
-      MenuItem::defaultHandleDraw(item);
-      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
-      fillColor(0, 0, 0);
-      fillTextFitToWidth("bye", screenWidth * 0.65f);
-    };
+    item->handleDraw = makeTextDraw("bye", screenWidth * 0.65f);
   }
 
   for (auto &item : mode.rootMenu->items) {
@@ -337,13 +351,8 @@ STAK_EXPORT int crank_rotated(int amount) {
 }
 
 STAK_EXPORT int shutter_button_pressed() {
-  std::cout << "pressed" << std::endl;
-
   auto activeItem = mode.activeMenu->activeItem;
-  if (activeItem) {
-    timeline.apply(&activeItem->scale).then<RampTo>(0.75f, 0.25f, EaseOutQuad());
-    timeline.apply(&activeItem->color).then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad());
-  }
+  if (activeItem && activeItem->handlePress) activeItem->handlePress(*activeItem);
 
   return 0;
 }
@@ -351,35 +360,28 @@ STAK_EXPORT int shutter_button_pressed() {
 STAK_EXPORT int shutter_button_released() {
   // stak_activate_mode();
 
-  std::cout << "released" << std::endl;
-
   auto activeItem = mode.activeMenu->activeItem;
   if (activeItem) {
+    if (activeItem->handleRelease) activeItem->handleRelease(*activeItem);
     if (activeItem->handleActivate) activeItem->handleActivate(*activeItem);
-    timeline.apply(&activeItem->scale).then<RampTo>(1.0f, 0.25f, EaseInQuad());
-    timeline.apply(&activeItem->color).then<RampTo>(tileActiveColor, 0.25f, EaseInQuad());
   }
 
   return 0;
 }
 
 STAK_EXPORT int power_button_pressed() {
-  std::cout << "power pressed" << std::endl;
   activatePreviousMenu();
   return 0;
 }
 
 STAK_EXPORT int power_button_released() {
-  std::cout << "power released" << std::endl;
   return 0;
 }
 
 STAK_EXPORT int crank_pressed() {
-  std::cout << "crank pressed" << std::endl;
   return 0;
 }
 
 STAK_EXPORT int crank_released() {
-  std::cout << "crank released" << std::endl;
   return 0;
 }
