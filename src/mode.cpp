@@ -117,15 +117,14 @@ struct Menu {
   std::vector<std::unique_ptr<MenuItem>> items;
   MenuItem *activeItem = nullptr;
 
+  float indexedRotation;
+  size_t currentIndex;
+
   float tileRadius = screenWidth * 0.5f;
 
   std::chrono::steady_clock::time_point lastCrankTime;
 
   Menu() { rotation.friction = 0.2f; }
-
-  uint32_t getActiveTileIndex() {
-    return std::fmod(std::round(rotation.angle / TWO_PI * items.size()), items.size());
-  }
 
   MenuItem *makeItem() {
     items.emplace_back(new MenuItem());
@@ -140,16 +139,16 @@ struct Menu {
   void step() {
     rotation.step();
 
+    indexedRotation = rotation.angle / TWO_PI * items.size();
+    currentIndex = std::fmod(std::round(indexedRotation), items.size());
+
     auto timeSinceLastCrank = std::chrono::steady_clock::now() - lastCrankTime;
     if (timeSinceLastCrank > std::chrono::milliseconds(350)) {
-      auto tileIndex = getActiveTileIndex();
-
       if (!activeItem) {
-        activeItem = items[tileIndex].get();
+        activeItem = items[currentIndex].get();
         if (activeItem->handleSelect) activeItem->handleSelect(*activeItem);
       }
-
-      rotation.lerp(float(tileIndex) / items.size() * TWO_PI, 0.2f);
+      rotation.lerp(float(currentIndex) / items.size() * TWO_PI, 0.2f);
     }
   }
 
@@ -161,14 +160,21 @@ struct Menu {
     translate(position() + vec2(radius, 0.0f));
     rotate(rotation.angle);
 
-    for (const auto &item : items) {
+    auto drawItem = [&](size_t i) {
+      const auto &item = *items[i];
       pushTransform();
+      rotate(float(i) / items.size() * -TWO_PI);
       translate(-radius, 0.0f);
-      scale(item->scale());
-      item->handleDraw(*item);
+      scale(item.scale());
+      item.handleDraw(item);
       popTransform();
-      rotate(angleIncr);
-    }
+    };
+
+    drawItem(currentIndex);
+
+    float offset = indexedRotation - currentIndex;
+    if (offset < -0.25f) drawItem((items.size() + currentIndex - 1) % items.size());
+    if (offset > 0.25f) drawItem((currentIndex + 1) % items.size());
 
     popTransform();
   }
@@ -197,7 +203,7 @@ static void activateMenu(Menu *menu, bool pushToStack) {
     mode.deactivatingMenu = mode.activeMenu;
 
     timeline.apply(&mode.deactivatingMenu->position)
-        .then<RampTo>(vec2(-screenWidth, 0.0f), 0.5f, EaseInOutQuad())
+        .then<RampTo>(vec2(-screenWidth, 0.0f), 0.3f, EaseInOutQuad())
         .finishFn([&](Motion<vec2> &m) { mode.deactivatingMenu = nullptr; });
 
     if (pushToStack) {
@@ -207,7 +213,7 @@ static void activateMenu(Menu *menu, bool pushToStack) {
 
   // Animate in the new active menu
   menu->position = vec2(screenWidth, 0.0f);
-  timeline.apply(&menu->position).then<RampTo>(vec2(), 0.5f, EaseInOutQuad());
+  timeline.apply(&menu->position).then<RampTo>(vec2(), 0.3f, EaseInOutQuad());
   mode.activeMenu = menu;
 }
 
