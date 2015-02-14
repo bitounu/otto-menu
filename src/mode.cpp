@@ -198,12 +198,14 @@ static void activateMenu(Menu *menu, bool pushToStack) {
   // user-facing API less error prone.
   if (mode.deactivatingMenu) return;
 
+  float direction = pushToStack ? 1.0f : -1.0f;
+
   // Deactivate previously active menu and animate out
   {
     mode.deactivatingMenu = mode.activeMenu;
 
     timeline.apply(&mode.deactivatingMenu->position)
-        .then<RampTo>(vec2(-screenWidth, 0.0f), 0.3f, EaseInOutQuad())
+        .then<RampTo>(vec2(-screenWidth * direction, 0.0f), 0.3f, EaseInOutQuad())
         .finishFn([&](Motion<vec2> &m) { mode.deactivatingMenu = nullptr; });
 
     if (pushToStack) {
@@ -212,7 +214,7 @@ static void activateMenu(Menu *menu, bool pushToStack) {
   }
 
   // Animate in the new active menu
-  menu->position = vec2(screenWidth, 0.0f);
+  menu->position = vec2(screenWidth * direction, 0.0f);
   timeline.apply(&menu->position).then<RampTo>(vec2(), 0.3f, EaseInOutQuad());
   mode.activeMenu = menu;
 }
