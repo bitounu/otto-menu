@@ -63,40 +63,6 @@ struct AngularParticle {
   void lerp(float targetAngle, float t) { angle = lerpAngular(angle, targetAngle, t); }
 };
 
-struct Carousel {
-  AngularParticle rotation;
-
-  uint32_t tileCount = 2;
-  float tileRadius = 48.0f;
-
-  Carousel() { rotation.friction = 0.2f; }
-
-  uint32_t getActiveTileIndex() {
-    return std::fmod(std::round(rotation.angle / TWO_PI * tileCount), tileCount);
-  }
-
-  void turn(float amount) { rotation.angle += amount / tileCount; }
-
-  void step() { rotation.step(); }
-
-  void draw(const std::function<void(int i)> &drawTile) const {
-    auto radius = regularPolyRadius(tileRadius * 2.2f, tileCount);
-    auto angleIncr = -TWO_PI / tileCount;
-
-    pushTransform();
-    translate(radius, 0.0f);
-    rotate(rotation.angle);
-    for (int i = 0; i < tileCount; ++i) {
-      pushTransform();
-      translate(-radius, 0.0f);
-      drawTile(i);
-      popTransform();
-      rotate(angleIncr);
-    }
-    popTransform();
-  }
-};
-
 class Menu;
 
 static void activateMenu(Menu *menu, bool pushToStack = true);
@@ -126,8 +92,8 @@ struct MenuItem {
     timeline.apply(&item.color).then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad());
   }
   static void defaultHandleRelease(MenuItem &item) {
-    timeline.apply(&item.scale).then<RampTo>(1.0f, 0.25f, EaseInQuad());
-    timeline.apply(&item.color).then<RampTo>(tileActiveColor, 0.25f, EaseInQuad());
+    timeline.apply(&item.scale).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
+    timeline.apply(&item.color).then<RampTo>(tileActiveColor, 0.25f, EaseOutQuad());
   }
 
   static void defaultHandleActivate(MenuItem &item) {
@@ -146,15 +112,65 @@ struct MenuItem {
 
 struct Menu {
   Output<vec2> position;
-  Carousel carousel;
+  AngularParticle rotation;
 
   std::vector<std::unique_ptr<MenuItem>> items;
   MenuItem *activeItem = nullptr;
 
+  float tileRadius = screenWidth * 0.5f;
+
+  std::chrono::steady_clock::time_point lastCrankTime;
+
+  Menu() { rotation.friction = 0.2f; }
+
+  uint32_t getActiveTileIndex() {
+    return std::fmod(std::round(rotation.angle / TWO_PI * items.size()), items.size());
+  }
+
   MenuItem *makeItem() {
     items.emplace_back(new MenuItem());
-    carousel.tileCount = items.size();
     return items.back().get();
+  }
+
+  void turn(float amount) {
+    rotation.angle += amount / items.size();
+    lastCrankTime = std::chrono::steady_clock::now();
+  }
+
+  void step() {
+    rotation.step();
+
+    auto timeSinceLastCrank = std::chrono::steady_clock::now() - lastCrankTime;
+    if (timeSinceLastCrank > std::chrono::milliseconds(350)) {
+      auto tileIndex = getActiveTileIndex();
+
+      if (!activeItem) {
+        activeItem = items[tileIndex].get();
+        if (activeItem->handleSelect) activeItem->handleSelect(*activeItem);
+      }
+
+      rotation.lerp(float(tileIndex) / items.size() * TWO_PI, 0.2f);
+    }
+  }
+
+  void draw() const {
+    auto radius = regularPolyRadius(tileRadius * 2.2f, items.size());
+    auto angleIncr = -TWO_PI / items.size();
+
+    pushTransform();
+    translate(position() + vec2(radius, 0.0f));
+    rotate(rotation.angle);
+
+    for (const auto &item : items) {
+      pushTransform();
+      translate(-radius, 0.0f);
+      scale(item->scale());
+      item->handleDraw(*item);
+      popTransform();
+      rotate(angleIncr);
+    }
+
+    popTransform();
   }
 };
 
@@ -164,8 +180,6 @@ struct MenuMode {
   std::vector<Menu *> menuStack;
   Menu *activeMenu = nullptr;
   Menu *deactivatingMenu = nullptr;
-
-  std::chrono::steady_clock::time_point lastCrankTime;
 
   float secondsPerFrame;
   uint32_t frameCount = 0;
@@ -210,6 +224,7 @@ static void fillTextFitToWidth(const std::string &text, float width) {
   fontSize(width / textWidth);
   fillText(text);
 }
+
 
 STAK_EXPORT int init() {
   loadFont("assets/232MKSD-round-light.ttf");
@@ -285,19 +300,7 @@ STAK_EXPORT int update(float dt) {
   auto &menu = *mode.activeMenu;
 
   timeline.step(dt);
-  menu.carousel.step();
-
-  auto timeSinceLastCrank = std::chrono::steady_clock::now() - mode.lastCrankTime;
-  if (timeSinceLastCrank > std::chrono::milliseconds(350)) {
-    auto tileIndex = menu.carousel.getActiveTileIndex();
-
-    if (!menu.activeItem) {
-      menu.activeItem = menu.items[tileIndex].get();
-      if (menu.activeItem->handleSelect) menu.activeItem->handleSelect(*menu.activeItem);
-    }
-
-    menu.carousel.rotation.lerp(float(tileIndex) / menu.carousel.tileCount * TWO_PI, 0.2f);
-  }
+  mode.activeMenu->step();
 
   mode.frameCount++;
 
@@ -319,19 +322,8 @@ STAK_EXPORT int draw() {
   setTransform(defaultMatrix);
   translate(48, 48);
 
-  auto drawMenu = [&](const Menu &menu) {
-    pushTransform();
-    translate(menu.position());
-    menu.carousel.draw([&](int i) {
-      const auto &item = *menu.items[i];
-      scale(item.scale());
-      item.handleDraw(item);
-    });
-    popTransform();
-  };
-
-  if (mode.deactivatingMenu) drawMenu(*mode.deactivatingMenu);
-  drawMenu(*mode.activeMenu);
+  if (mode.deactivatingMenu) mode.deactivatingMenu->draw();
+  mode.activeMenu->draw();
 
   return 0;
 }
@@ -339,8 +331,7 @@ STAK_EXPORT int draw() {
 STAK_EXPORT int crank_rotated(int amount) {
   auto &menu = *mode.activeMenu;
 
-  menu.carousel.turn(amount * -0.1f);
-  mode.lastCrankTime = std::chrono::steady_clock::now();
+  menu.turn(amount * -0.1f);
 
   if (menu.activeItem) {
     if (menu.activeItem->handleDeselect) menu.activeItem->handleDeselect(*menu.activeItem);
