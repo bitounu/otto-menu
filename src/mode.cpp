@@ -79,8 +79,8 @@ struct MenuItem {
   }
 
   static void defaultHandleSelect(MenuItem &item) {
-    timeline.apply(&item.color).then<RampTo>(tileActiveColor, 0.2f, EaseInOutQuad());
-    timeline.apply(&item.scale).then<RampTo>(1.0f, 0.2f, EaseInOutQuad());
+    timeline.apply(&item.color).then<RampTo>(tileActiveColor, 0.2f, EaseOutQuad());
+    timeline.apply(&item.scale).then<RampTo>(1.0f, 0.2f, EaseOutQuad());
   }
   static void defaultHandleDeselect(MenuItem &item) {
     timeline.apply(&item.color).then<RampTo>(tileDefaultColor, 0.2f, EaseInOutQuad());
@@ -124,8 +124,6 @@ struct Menu {
 
   std::chrono::steady_clock::time_point lastCrankTime;
 
-  Menu() { rotation.friction = 0.2f; }
-
   MenuItem *makeItem() {
     items.emplace_back(new MenuItem());
     return items.back().get();
@@ -137,6 +135,7 @@ struct Menu {
   }
 
   void step() {
+    rotation.friction = activeItem ? 0.2f : 0.1f;
     rotation.step();
 
     indexedRotation = rotation.angle / TWO_PI * items.size();
@@ -226,10 +225,10 @@ static void activatePreviousMenu() {
   }
 }
 
-static void fillTextFitToWidth(const std::string &text, float width) {
+static void fillTextFitToWidth(const std::string &text, float width, float height) {
   fontSize(1.0f);
-  auto textWidth = getTextBounds(text).size.x;
-  fontSize(width / textWidth);
+  auto size = getTextBounds(text).size;
+  fontSize(std::min(width / size.x, height / size.y));
   fillText(text);
 }
 
@@ -239,58 +238,39 @@ STAK_EXPORT int init() {
 
   mode.activeMenu = mode.rootMenu.get();
 
-  auto makeTextDraw = [](const std::string &text, float width) {
+  auto makeTextDraw =
+      [](const std::string &text, float width = screenWidth * 0.6f, float height = 40.0f) {
     return [=](const MenuItem &item) {
       MenuItem::defaultHandleDraw(item);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
-      fillColor(0, 0, 0);
-      fillTextFitToWidth(text, width);
+      fillColor(0.0f, 0.0f, 0.0f);
+      fillTextFitToWidth(text, width, height);
     };
   };
 
   {
+    auto modes = mode.rootMenu->makeItem();
+    modes->handleDraw = makeTextDraw(".gif");
+  }
+
+  {
     auto wifi = mode.rootMenu->makeItem();
-
-    wifi->handleDraw = [](const MenuItem &item) {
-      MenuItem::defaultHandleDraw(item);
-
-      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
-      fillColor(0, 0, 0);
-      fillTextFitToWidth("oTo", screenWidth * 0.65f);
-
-      beginPath();
-      arc(0, 0, 52, 52, M_PI * -0.3f, M_PI * -0.7f);
-      strokeWidth(1.5f);
-      strokeColor(0, 0, 0);
-      stroke();
-    };
-    wifi->handleSelect = [](MenuItem &item) {
-      MenuItem::defaultHandleSelect(item);
-      std::cout << "wifi selected!" << std::endl;
-    };
-    wifi->handleActivate = [](MenuItem &item) {
-      MenuItem::defaultHandleActivate(item);
-      std::cout << "wifi activated!" << std::endl;
-    };
-
+    wifi->handleDraw = makeTextDraw("wifi");
     wifi->subMenu = std::make_unique<Menu>();
-    auto a = wifi->subMenu->makeItem();
-    a->handleDraw = makeTextDraw("on", screenWidth * 0.6f);
-    auto b = wifi->subMenu->makeItem();
-    b->handleDraw = makeTextDraw("off", screenWidth * 0.6f);
-    auto c = wifi->subMenu->makeItem();
-    c->handleDraw = makeTextDraw("exit", screenWidth * 0.6f);
-    c->handleActivate = [](MenuItem &item) { activatePreviousMenu(); };
+    wifi->subMenu->makeItem()->handleDraw = makeTextDraw("on/off");
+    auto ex = wifi->subMenu->makeItem();
+    ex->handleDraw = makeTextDraw("X");
+    ex->handleActivate = [](MenuItem &item) { activatePreviousMenu(); };
   }
 
   {
     auto item = mode.rootMenu->makeItem();
-    item->handleDraw = makeTextDraw("hello!", screenWidth * 0.65f);
+    item->handleDraw = makeTextDraw("98%");
   }
 
   {
     auto item = mode.rootMenu->makeItem();
-    item->handleDraw = makeTextDraw("bye", screenWidth * 0.65f);
+    item->handleDraw = makeTextDraw("512MB");
   }
 
   for (auto &item : mode.rootMenu->items) {
@@ -339,7 +319,7 @@ STAK_EXPORT int draw() {
 STAK_EXPORT int crank_rotated(int amount) {
   auto &menu = *mode.activeMenu;
 
-  menu.turn(amount * -0.1f);
+  menu.turn(amount * -0.05f);
 
   if (menu.activeItem) {
     if (menu.activeItem->handleDeselect) menu.activeItem->handleDeselect(*menu.activeItem);
