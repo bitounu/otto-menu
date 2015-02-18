@@ -21,8 +21,10 @@ include_directories(SYSTEM "/opt/vc/include") # VideoCore
 file(GLOB deps_src "deps/Choreograph/src/choreograph/*.cpp")
 file(GLOB src "src/*.cpp")
 
-set_source_files_properties(${deps_src} ${src} PROPERTIES COMPILE_FLAGS
+set(otto_menu_src ${deps_src} ${src})
+
+set_source_files_properties(${otto_menu_src} PROPERTIES COMPILE_FLAGS
   "-include make_unique.hpp -include algorithm")
 
-add_library(otto_menu SHARED ${deps_src} ${src})
+add_library(otto_menu MODULE ${otto_menu_src})
 target_link_libraries(otto_menu otto_gfx)
