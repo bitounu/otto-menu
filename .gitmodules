@@ -7,3 +7,6 @@
 [submodule "deps/Choreograph"]
 	path = deps/Choreograph
 	url = https://github.com/sansumbrella/Choreograph.git
+[submodule "deps/entityx"]
+	path = deps/entityx
+	url = https://github.com/alecthomas/entityx.git

@@ -8,65 +8,76 @@ namespace otto {
 const vec3 MenuItem::defaultColor = { 0.0f, 1.0f, 1.0f };
 const vec3 MenuItem::defaultActiveColor = { 1.0f, 1.0f, 0.0f };
 
-void MenuItem::defaultHandleDraw(const MenuItem &item) {
+void MenuItem::defaultHandleDraw(Entity entity) {
   beginPath();
   circle(vec2(), 44);
-  fillColor(item.color());
+  fillColor(entity.component<Color>()->color());
   fill();
 }
 
-void MenuItem::defaultHandleSelect(MenuSystem &ms, MenuItem &item) {
-  timeline.apply(&item.color).then<RampTo>(defaultActiveColor, 0.2f, EaseOutQuad());
-  timeline.apply(&item.scale).then<RampTo>(1.0f, 0.2f, EaseOutQuad());
+void MenuItem::defaultHandleSelect(MenuSystem &ms, Entity entity) {
+  timeline.apply(&entity.component<Color>()->color)
+      .then<RampTo>(defaultActiveColor, 0.2f, EaseOutQuad());
+  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(1.0f, 0.2f, EaseOutQuad());
 }
 
-void MenuItem::defaultHandleDeselect(MenuSystem &ms, MenuItem &item) {
-  timeline.apply(&item.color).then<RampTo>(defaultColor, 0.2f, EaseInOutQuad());
-  timeline.apply(&item.scale).then<RampTo>(0.8f, 0.2f, EaseInOutQuad());
+void MenuItem::defaultHandleDeselect(MenuSystem &ms, Entity entity) {
+  timeline.apply(&entity.component<Color>()->color)
+      .then<RampTo>(defaultColor, 0.2f, EaseInOutQuad());
+  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(0.8f, 0.2f, EaseInOutQuad());
 }
 
-void MenuItem::defaultHandlePress(MenuSystem &ms, MenuItem &item) {
-  timeline.apply(&item.scale).then<RampTo>(0.8f, 0.25f, EaseOutQuad());
-  timeline.apply(&item.color).then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad());
+void MenuItem::defaultHandlePress(MenuSystem &ms, Entity entity) {
+  timeline.apply(&entity.component<Color>()->color)
+      .then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad());
+  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(0.8f, 0.25f, EaseOutQuad());
 }
 
-void MenuItem::defaultHandleRelease(MenuSystem &ms, MenuItem &item) {
-  timeline.apply(&item.scale).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
-  timeline.apply(&item.color).then<RampTo>(defaultActiveColor, 0.25f, EaseOutQuad());
+void MenuItem::defaultHandleRelease(MenuSystem &ms, Entity entity) {
+  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
+  timeline.apply(&entity.component<Color>()->color)
+      .then<RampTo>(defaultActiveColor, 0.25f, EaseOutQuad());
 }
 
-void MenuItem::defaultHandleActivate(MenuSystem &ms, MenuItem &item) {
-  if (item.subMenu) ms.activateMenu(item.subMenu.get());
+void MenuItem::defaultHandleActivate(MenuSystem &ms, Entity entity) {
+  auto item = entity.component<MenuItem>();
+  if (item->subMenu) ms.activateMenu(item->subMenu);
 }
 
-MenuItem *Menu::makeItem() {
-  items.emplace_back(new MenuItem());
-  return items.back().get();
-}
+void Menu::defaultHandleDraw(Entity entity) {
+  auto menu = entity.component<Menu>();
+  const auto &menuItems = menu->items;
 
-void Menu::draw() const {
-  auto radius = regularPolyRadius(tileRadius * 2.2f, items.size());
-  auto angleIncr = -TWO_PI / items.size();
+  auto radius = regularPolyRadius(menu->tileRadius * 2.2f, menuItems.size());
+  auto angleIncr = -TWO_PI / menuItems.size();
 
   pushTransform();
-  translate(position() + vec2(radius, 0.0f));
-  rotate(rotation.angle);
+  translate(entity.component<Position>()->position() + vec2(radius, 0.0f));
+  rotate(entity.component<Rotation>()->angle);
 
   auto drawItem = [&](size_t i) {
-    const auto &item = *items[i];
-    pushTransform();
-    rotate(float(i) / items.size() * -TWO_PI);
-    translate(-radius, 0.0f);
-    scale(item.scale());
-    item.handleDraw(item);
-    popTransform();
+    if (i >= menuItems.size()) return;
+    auto item = menuItems[i];
+    auto handler = item.component<DrawHandler>();
+    if (handler) {
+      pushTransform();
+      rotate(float(i) / menuItems.size() * -TWO_PI);
+      translate(-radius, 0.0f);
+      scale(item.component<Scale>()->scale());
+      handler->draw(item);
+      popTransform();
+    }
   };
 
-  drawItem(currentIndex);
+  drawItem(menu->currentIndex);
 
-  float offset = indexedRotation - currentIndex;
-  if (offset < -0.25f) drawItem((items.size() + currentIndex - 1) % items.size());
-  if (offset > 0.25f) drawItem((currentIndex + 1) % items.size());
+  float offset = menu->indexedRotation - menu->currentIndex;
+  if (offset < -0.25f) {
+    drawItem((menuItems.size() + menu->currentIndex - 1) % menuItems.size());
+  }
+  if (offset > 0.25f) {
+    drawItem((menu->currentIndex + 1) % menuItems.size());
+  }
 
   popTransform();
 }
@@ -74,49 +85,55 @@ void Menu::draw() const {
 MenuSystem::MenuSystem(const vec2 &screenSize) : screenSize{ screenSize } {
 }
 
-void MenuSystem::step() {
-  auto &menu = *mActiveMenu;
+void MenuSystem::update(entityx::EntityManager &es, entityx::EventManager &events,
+                        entityx::TimeDelta dt) {
+  auto menu = mActiveMenu.component<Menu>();
 
-  menu.rotation.friction = menu.activeItem ? 0.3f : 0.15f;
-  menu.rotation.step();
+  auto rotation = mActiveMenu.component<Rotation>();
+  rotation->friction = menu->activeItem ? 0.3f : 0.15f;
+  rotation->step();
 
-  menu.indexedRotation = menu.rotation.angle / TWO_PI * menu.items.size();
-  menu.currentIndex = std::fmod(std::round(menu.indexedRotation), menu.items.size());
+  menu->indexedRotation = rotation->angle / TWO_PI * menu->items.size();
+  menu->currentIndex = std::fmod(std::round(menu->indexedRotation), menu->items.size());
 
-  auto timeSinceLastCrank = std::chrono::steady_clock::now() - menu.lastCrankTime;
+  auto timeSinceLastCrank = std::chrono::steady_clock::now() - menu->lastCrankTime;
   if (timeSinceLastCrank > std::chrono::milliseconds(350)) {
-    if (!menu.activeItem) {
-      menu.activeItem = menu.items[menu.currentIndex].get();
-      if (menu.activeItem->handleSelect) {
-        menu.activeItem->handleSelect(*this, *menu.activeItem);
+    if (!menu->activeItem && menu->items.size() > 0) {
+      menu->activeItem = menu->items[menu->currentIndex];
+      auto itemHandleSelect = menu->activeItem.component<SelectHandler>();
+      if (itemHandleSelect) {
+        itemHandleSelect->select(*this, menu->activeItem);
       }
     }
-    menu.rotation.lerp(float(menu.currentIndex) / menu.items.size() * TWO_PI, 0.2f);
+    rotation->lerp(float(menu->currentIndex) / menu->items.size() * TWO_PI, 0.2f);
   }
 }
 
 void MenuSystem::draw() {
   translate(screenSize * 0.5f);
 
-  if (mDeactivatingMenu) mDeactivatingMenu->draw();
-  mActiveMenu->draw();
+  if (mDeactivatingMenu) {
+    mDeactivatingMenu.component<DrawHandler>()->draw(mDeactivatingMenu);
+  }
+  mActiveMenu.component<DrawHandler>()->draw(mActiveMenu);
 }
 
 void MenuSystem::turn(float amount) {
-  auto &menu = *mActiveMenu;
+  auto menu = mActiveMenu.component<Menu>();
 
-  menu.rotation.angle += amount / menu.items.size();
-  menu.lastCrankTime = std::chrono::steady_clock::now();
+  mActiveMenu.component<Rotation>()->angle += amount / menu->items.size();
+  menu->lastCrankTime = std::chrono::steady_clock::now();
 
-  if (menu.activeItem) {
-    if (menu.activeItem->handleDeselect) {
-      menu.activeItem->handleDeselect(*this, *menu.activeItem);
+  if (menu->activeItem) {
+    auto itemHandleDeselect = menu->activeItem.component<DeselectHandler>();
+    if (itemHandleDeselect) {
+      itemHandleDeselect->deselect(*this, menu->activeItem);
     }
-    menu.activeItem = nullptr;
+    menu->activeItem.invalidate();
   }
 }
 
-void MenuSystem::activateMenu(Menu *menu, bool pushToStack) {
+void MenuSystem::activateMenu(Entity menuEntity, bool pushToStack) {
   // NOTE(ryan): Bail if there's already an activation in progress. We do this here to make the
   // user-facing API less error prone.
   if (mDeactivatingMenu) return;
@@ -127,9 +144,9 @@ void MenuSystem::activateMenu(Menu *menu, bool pushToStack) {
   if (mActiveMenu) {
     mDeactivatingMenu = mActiveMenu;
 
-    timeline.apply(&mDeactivatingMenu->position)
+    timeline.apply(&mDeactivatingMenu.component<Position>()->position)
         .then<RampTo>(vec2(-screenSize.x * direction, 0.0f), 0.3f, EaseInOutQuad())
-        .finishFn([&](Motion<vec2> &m) { mDeactivatingMenu = nullptr; });
+        .finishFn([&](Motion<vec2> &m) { mDeactivatingMenu.invalidate(); });
 
     if (pushToStack) {
       mMenuStack.push_back(mDeactivatingMenu);
@@ -137,13 +154,16 @@ void MenuSystem::activateMenu(Menu *menu, bool pushToStack) {
   }
 
   // Animate in the new active menu
-  menu->position = vec2(screenSize.x * direction, 0.0f);
-  timeline.apply(&menu->position).then<RampTo>(vec2(), 0.3f, EaseInOutQuad());
-  mActiveMenu = menu;
+  auto menu = menuEntity.component<Menu>();
+  auto menuPos = menuEntity.component<Position>();
+  menuPos->position = vec2(screenSize.x * direction, 0.0f);
+  timeline.apply(&menuPos->position).then<RampTo>(vec2(), 0.3f, EaseInOutQuad());
+
+  mActiveMenu = menuEntity;
 }
 
-void MenuSystem::activateMenu(Menu *menu) {
-  activateMenu(menu, true);
+void MenuSystem::activateMenu(Entity menuEntity) {
+  activateMenu(menuEntity, true);
 }
 
 void MenuSystem::activatePreviousMenu() {
@@ -154,19 +174,56 @@ void MenuSystem::activatePreviousMenu() {
 }
 
 void MenuSystem::pressItem() {
-  auto activeItem = mActiveMenu->activeItem;
-  if (activeItem && activeItem->handlePress) activeItem->handlePress(*this, *activeItem);
+  auto activeItem = mActiveMenu.component<Menu>()->activeItem;
+  if (activeItem) {
+    auto handler = activeItem.component<PressHandler>();
+    if (handler) handler->press(*this, activeItem);
+  }
 }
 
 void MenuSystem::releaseItem() {
-  auto activeItem = mActiveMenu->activeItem;
-  if (activeItem && activeItem->handleRelease) activeItem->handleRelease(*this, *activeItem);
+  auto activeItem = mActiveMenu.component<Menu>()->activeItem;
+  if (activeItem) {
+    auto handler = activeItem.component<ReleaseHandler>();
+    if (handler) handler->release(*this, activeItem);
+  }
 }
 
 void MenuSystem::activateItem() {
-  auto activeItem = mActiveMenu->activeItem;
-  if (activeItem && activeItem->handleActivate) activeItem->handleActivate(*this, *activeItem);
+  auto activeItem = mActiveMenu.component<Menu>()->activeItem;
+  if (activeItem) {
+    auto handler = activeItem.component<ActivateHandler>();
+    if (handler) handler->activate(*this, activeItem);
+  }
 }
 
+Entity makeMenu(entityx::EntityManager &es) {
+  auto entity = es.create();
+
+  entity.assign<Menu>();
+  entity.assign<Position>();
+  entity.assign<Rotation>();
+  entity.assign<DrawHandler>(Menu::defaultHandleDraw);
+
+  return entity;
+}
+
+Entity makeMenuItem(entityx::EntityManager &es, Entity menuEntity) {
+  auto entity = es.create();
+
+  entity.assign<MenuItem>();
+  entity.assign<Scale>(0.8f);
+  entity.assign<Color>(MenuItem::defaultColor);
+  entity.assign<DrawHandler>(MenuItem::defaultHandleDraw);
+  entity.assign<SelectHandler>(MenuItem::defaultHandleSelect);
+  entity.assign<DeselectHandler>(MenuItem::defaultHandleDeselect);
+  entity.assign<PressHandler>(MenuItem::defaultHandlePress);
+  entity.assign<ReleaseHandler>(MenuItem::defaultHandleRelease);
+  entity.assign<ActivateHandler>(MenuItem::defaultHandleActivate);
+
+  menuEntity.component<Menu>()->items.emplace_back(entity);
+
+  return entity;
+}
 
 } // otto

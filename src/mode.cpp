@@ -3,6 +3,8 @@
 #include "util.hpp"
 #include "menu.hpp"
 
+#include "entityx/entityx.h"
+
 // Debug
 #include <iostream>
 
@@ -15,10 +17,8 @@ using namespace otto;
 static const float screenWidth = 96.0f;
 static const float screenHeight = 96.0f;
 
-struct MenuMode {
-  std::unique_ptr<Menu> rootMenu;
-
-  MenuSystem menus = { vec2(screenWidth) };
+struct MenuMode : public entityx::EntityX {
+  Entity rootMenu;
 
   float secondsPerFrame;
   uint32_t frameCount = 0;
@@ -36,13 +36,17 @@ static void fillTextFitToWidth(const std::string &text, float width, float heigh
 STAK_EXPORT int init() {
   loadFont("assets/232MKSD-round-light.ttf");
 
-  mode.rootMenu = std::make_unique<Menu>();
-  mode.menus.activateMenu(mode.rootMenu.get());
+  mode.rootMenu = makeMenu(mode.entities);
+
+  auto menus = mode.systems.add<MenuSystem>(vec2(screenWidth, screenHeight));
+  menus->activateMenu(mode.rootMenu);
+
+  mode.systems.configure();
 
   auto makeTextDraw =
       [](const std::string &text, float width = screenWidth * 0.6f, float height = 40.0f) {
-    return [=](const MenuItem &item) {
-      MenuItem::defaultHandleDraw(item);
+    return [=](const Entity e) {
+      MenuItem::defaultHandleDraw(e);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0.0f, 0.0f, 0.0f);
       fillTextFitToWidth(text, width, height);
@@ -50,28 +54,29 @@ STAK_EXPORT int init() {
   };
 
   {
-    auto modes = mode.rootMenu->makeItem();
-    modes->handleDraw = makeTextDraw(".gif");
+    auto modes = makeMenuItem(mode.entities, mode.rootMenu);
+    modes.replace<DrawHandler>(makeTextDraw(".gif"));
   }
 
   {
-    auto wifi = mode.rootMenu->makeItem();
-    wifi->handleDraw = makeTextDraw("wifi");
-    wifi->subMenu = std::make_unique<Menu>();
-    wifi->subMenu->makeItem()->handleDraw = makeTextDraw("on/off");
-    auto ex = wifi->subMenu->makeItem();
-    ex->handleDraw = makeTextDraw("X");
-    ex->handleActivate = [](MenuSystem &ms, MenuItem &item) { ms.activatePreviousMenu(); };
+    auto e = makeMenuItem(mode.entities, mode.rootMenu);
+    e.replace<DrawHandler>(makeTextDraw("wifi"));
+    auto wifi = e.component<MenuItem>();
+    wifi->subMenu = makeMenu(mode.entities);
+    makeMenuItem(mode.entities, wifi->subMenu).replace<DrawHandler>(makeTextDraw("on/off"));
+    auto ex = makeMenuItem(mode.entities, wifi->subMenu);
+    ex.replace<DrawHandler>(makeTextDraw("X"));
+    ex.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { ms.activatePreviousMenu(); });
   }
 
   {
-    auto item = mode.rootMenu->makeItem();
-    item->handleDraw = makeTextDraw("98%");
+    auto item = makeMenuItem(mode.entities, mode.rootMenu);
+    item.replace<DrawHandler>(makeTextDraw("98%"));
   }
 
   {
-    auto item = mode.rootMenu->makeItem();
-    item->handleDraw = makeTextDraw("512MB");
+    auto item = makeMenuItem(mode.entities, mode.rootMenu);
+    item.replace<DrawHandler>(makeTextDraw("512MB"));
   }
 
   // for (auto &item : mode.rootMenu->items) {
@@ -87,7 +92,7 @@ STAK_EXPORT int shutdown() {
 
 STAK_EXPORT int update(float dt) {
   timeline.step(dt);
-  mode.menus.step();
+  mode.systems.update<MenuSystem>(dt);
 
   mode.frameCount++;
 
@@ -108,29 +113,30 @@ STAK_EXPORT int draw() {
 
   setTransform(defaultMatrix);
 
-  mode.menus.draw();
+  mode.systems.system<MenuSystem>()->draw();
 
   return 0;
 }
 
 STAK_EXPORT int crank_rotated(int amount) {
-  mode.menus.turn(amount * -0.2f);
+  mode.systems.system<MenuSystem>()->turn(amount * -0.2f);
   return 0;
 }
 
 STAK_EXPORT int shutter_button_pressed() {
-  mode.menus.pressItem();
+  mode.systems.system<MenuSystem>()->pressItem();
   return 0;
 }
 
 STAK_EXPORT int shutter_button_released() {
-  mode.menus.releaseItem();
-  mode.menus.activateItem();
+  auto ms = mode.systems.system<MenuSystem>();
+  ms->releaseItem();
+  ms->activateItem();
   return 0;
 }
 
 STAK_EXPORT int power_button_pressed() {
-  mode.menus.activatePreviousMenu();
+  mode.systems.system<MenuSystem>()->activatePreviousMenu();
   return 0;
 }
 

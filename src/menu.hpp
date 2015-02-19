@@ -4,45 +4,58 @@
 #include "gfx.hpp"
 #include "util.hpp"
 
+#include "entityx/entityx.h"
+
 #include <chrono>
 #include <functional>
 #include <vector>
 
 namespace otto {
 
-class Menu;
+using entityx::Entity;
+using entityx::System;
+using entityx::ComponentHandle;
+
+struct Position {
+  ch::Output<glm::vec2> position;
+};
+
+struct Rotation : public AngularParticle {};
+
+struct Scale {
+  ch::Output<float> scale;
+};
+
+struct Color {
+  ch::Output<glm::vec3> color;
+};
+
 class MenuSystem;
 
-struct MenuItem {
-  static const glm::vec3 defaultColor;
-  static const glm::vec3 defaultActiveColor;
-
-  ch::Output<glm::vec3> color = defaultColor;
-  ch::Output<float> scale = 0.8f;
-
-  static void defaultHandleDraw(const MenuItem &item);
-  static void defaultHandleSelect(MenuSystem &ms, MenuItem &item);
-  static void defaultHandleDeselect(MenuSystem &ms, MenuItem &item);
-  static void defaultHandlePress(MenuSystem &ms, MenuItem &item);
-  static void defaultHandleRelease(MenuSystem &ms, MenuItem &item);
-  static void defaultHandleActivate(MenuSystem &ms, MenuItem &item);
-
-  std::function<void(const MenuItem &)> handleDraw = defaultHandleDraw;
-  std::function<void(MenuSystem &ms, MenuItem &)> handleSelect = defaultHandleSelect;
-  std::function<void(MenuSystem &ms, MenuItem &)> handleDeselect = defaultHandleDeselect;
-  std::function<void(MenuSystem &ms, MenuItem &)> handlePress = defaultHandlePress;
-  std::function<void(MenuSystem &ms, MenuItem &)> handleRelease = defaultHandleRelease;
-  std::function<void(MenuSystem &ms, MenuItem &)> handleActivate = defaultHandleActivate;
-
-  std::unique_ptr<Menu> subMenu;
+struct DrawHandler {
+  std::function<void(Entity)> draw;
+};
+struct SelectHandler {
+  std::function<void(MenuSystem &, Entity)> select;
+};
+struct DeselectHandler {
+  std::function<void(MenuSystem &, Entity)> deselect;
+};
+struct PressHandler {
+  std::function<void(MenuSystem &, Entity)> press;
+};
+struct ReleaseHandler {
+  std::function<void(MenuSystem &, Entity)> release;
+};
+struct ActivateHandler {
+  std::function<void(MenuSystem &, Entity)> activate;
 };
 
 struct Menu {
-  ch::Output<glm::vec2> position;
-  AngularParticle rotation;
+  static void defaultHandleDraw(Entity entity);
 
-  std::vector<std::unique_ptr<MenuItem>> items;
-  MenuItem *activeItem = nullptr;
+  std::vector<Entity> items;
+  Entity activeItem;
 
   float indexedRotation;
   size_t currentIndex;
@@ -50,35 +63,49 @@ struct Menu {
   float tileRadius = 48.0f;
 
   std::chrono::steady_clock::time_point lastCrankTime;
-
-  MenuItem *makeItem();
-
-  void draw() const;
 };
 
-class MenuSystem {
-  std::vector<Menu *> mMenuStack;
+struct MenuItem {
+  static const glm::vec3 defaultColor;
+  static const glm::vec3 defaultActiveColor;
 
-  Menu *mActiveMenu = nullptr;
-  Menu *mDeactivatingMenu = nullptr;
+  static void defaultHandleDraw(Entity entity);
+  static void defaultHandleSelect(MenuSystem &ms, Entity entity);
+  static void defaultHandleDeselect(MenuSystem &ms, Entity entity);
+  static void defaultHandlePress(MenuSystem &ms, Entity entity);
+  static void defaultHandleRelease(MenuSystem &ms, Entity entity);
+  static void defaultHandleActivate(MenuSystem &ms, Entity entity);
 
-  void activateMenu(Menu *menu, bool pushToStack);
+  Entity subMenu;
+};
+
+class MenuSystem : public System<MenuSystem> {
+  std::vector<Entity> mMenuStack;
+
+  Entity mActiveMenu;
+  Entity mDeactivatingMenu;
+
+  void activateMenu(Entity menuEntity, bool pushToStack);
 
 public:
   glm::vec2 screenSize;
 
   MenuSystem(const glm::vec2 &screenSize);
 
-  void step();
+  void update(entityx::EntityManager &es, entityx::EventManager &events,
+              entityx::TimeDelta dt) override;
   void draw();
   void turn(float amount);
 
-  void activateMenu(Menu *menu);
+  void activateMenu(Entity menuEntity);
   void activatePreviousMenu();
 
   void pressItem();
   void releaseItem();
   void activateItem();
 };
+
+Entity makeMenu(entityx::EntityManager &es);
+Entity makeMenuItem(entityx::EntityManager &es, Entity menuEntity);
 
 } // otto
