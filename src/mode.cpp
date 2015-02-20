@@ -26,6 +26,10 @@ struct MenuMode : public entityx::EntityX {
 
 static MenuMode mode;
 
+struct Toggle {
+  bool enabled;
+};
+
 static void fillTextFitToWidth(const std::string &text, float width, float height) {
   fontSize(1.0f);
   auto size = getTextBounds(text).size;
@@ -63,7 +67,22 @@ STAK_EXPORT int init() {
     e.replace<DrawHandler>(makeTextDraw("wifi"));
     auto wifi = e.component<MenuItem>();
     wifi->subMenu = makeMenu(mode.entities);
-    makeMenuItem(mode.entities, wifi->subMenu).replace<DrawHandler>(makeTextDraw("on/off"));
+
+    auto tog = makeMenuItem(mode.entities, wifi->subMenu);
+    tog.replace<DrawHandler>([](Entity e) {
+      MenuItem::defaultHandleDraw(e);
+      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
+      fillColor(0, 0, 0);
+      fontSize(30);
+      auto toggle = e.component<Toggle>();
+      fillText(toggle->enabled ? "on" : "off");
+    });
+    tog.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
+      auto toggle = e.component<Toggle>();
+      toggle->enabled = !toggle->enabled;
+    });
+    tog.assign<Toggle>(false);
+
     auto ex = makeMenuItem(mode.entities, wifi->subMenu);
     ex.replace<DrawHandler>(makeTextDraw("X"));
     ex.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { ms.activatePreviousMenu(); });
