@@ -5,8 +5,8 @@ using namespace glm;
 
 namespace otto {
 
-const vec3 MenuItem::defaultColor = { 0.0f, 1.0f, 1.0f };
-const vec3 MenuItem::defaultActiveColor = { 1.0f, 1.0f, 0.0f };
+const vec3 MenuItem::defaultColor = { 0.0f, 0.8f, 0.5f };
+const vec3 MenuItem::defaultActiveColor = { 0.0f, 1.0f, 0.8f };
 
 void MenuItem::defaultHandleDraw(Entity entity) {
   beginPath();
@@ -22,14 +22,10 @@ void MenuItem::defaultHandleSelect(MenuSystem &ms, Entity entity) {
 }
 
 void MenuItem::defaultHandleDeselect(MenuSystem &ms, Entity entity) {
-  timeline.apply(&entity.component<Color>()->color)
-      .then<RampTo>(defaultColor, 0.2f, EaseInOutQuad());
   timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(0.8f, 0.2f, EaseInOutQuad());
 }
 
 void MenuItem::defaultHandlePress(MenuSystem &ms, Entity entity) {
-  timeline.apply(&entity.component<Color>()->color)
-      .then<RampTo>(vec3(1, 0, 0), 0.25f, EaseOutQuad());
   timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(0.8f, 0.25f, EaseOutQuad());
 }
 

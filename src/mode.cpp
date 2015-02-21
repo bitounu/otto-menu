@@ -20,6 +20,8 @@ static const float screenHeight = 96.0f;
 struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
 
+  NSVGimage *iconBack, *iconBattery, *iconHdd, *iconNo, *iconWifi, *iconYes;
+
   float secondsPerFrame;
   uint32_t frameCount = 0;
 };
@@ -40,6 +42,14 @@ static void fillTextFitToWidth(const std::string &text, float width, float heigh
 STAK_EXPORT int init() {
   loadFont("assets/232MKSD-round-light.ttf");
 
+  // Load images
+  mode.iconBack = nsvgParseFromFile("assets/icon-back.svg", "px", 96);
+  mode.iconBattery = nsvgParseFromFile("assets/icon-battery.svg", "px", 96);
+  mode.iconHdd = nsvgParseFromFile("assets/icon-hdd.svg", "px", 96);
+  mode.iconNo = nsvgParseFromFile("assets/icon-no.svg", "px", 96);
+  mode.iconWifi = nsvgParseFromFile("assets/icon-wifi.svg", "px", 96);
+  mode.iconYes = nsvgParseFromFile("assets/icon-yes.svg", "px", 96);
+
   mode.rootMenu = makeMenu(mode.entities);
 
   auto menus = mode.systems.add<MenuSystem>(vec2(screenWidth, screenHeight));
@@ -49,7 +59,7 @@ STAK_EXPORT int init() {
 
   auto makeTextDraw =
       [](const std::string &text, float width = screenWidth * 0.6f, float height = 40.0f) {
-    return [=](const Entity e) {
+    return [=](Entity e) {
       MenuItem::defaultHandleDraw(e);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
       fillColor(0.0f, 0.0f, 0.0f);
@@ -57,25 +67,31 @@ STAK_EXPORT int init() {
     };
   };
 
+  auto makeIconDraw = [](NSVGimage *svg) {
+    return [svg](Entity e) {
+      MenuItem::defaultHandleDraw(e);
+      translate(vec2(-48.0f));
+      draw(svg);
+    };
+  };
+
   {
     auto modes = makeMenuItem(mode.entities, mode.rootMenu);
-    modes.replace<DrawHandler>(makeTextDraw(".gif"));
+    modes.replace<DrawHandler>(makeTextDraw("gif"));
   }
 
   {
-    auto e = makeMenuItem(mode.entities, mode.rootMenu);
-    e.replace<DrawHandler>(makeTextDraw("wifi"));
-    auto wifi = e.component<MenuItem>();
-    wifi->subMenu = makeMenu(mode.entities);
+    auto itemEntity = makeMenuItem(mode.entities, mode.rootMenu);
+    itemEntity.replace<DrawHandler>(makeIconDraw(mode.iconWifi));
 
-    auto tog = makeMenuItem(mode.entities, wifi->subMenu);
+    auto item = itemEntity.component<MenuItem>();
+    item->subMenu = makeMenu(mode.entities);
+
+    auto tog = makeMenuItem(mode.entities, item->subMenu);
     tog.replace<DrawHandler>([](Entity e) {
       MenuItem::defaultHandleDraw(e);
-      textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
-      fillColor(0, 0, 0);
-      fontSize(30);
-      auto toggle = e.component<Toggle>();
-      fillText(toggle->enabled ? "on" : "off");
+      translate(vec2(-48.0f));
+      draw(e.component<Toggle>()->enabled ? mode.iconYes : mode.iconNo);
     });
     tog.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
       auto toggle = e.component<Toggle>();
@@ -83,19 +99,19 @@ STAK_EXPORT int init() {
     });
     tog.assign<Toggle>(false);
 
-    auto ex = makeMenuItem(mode.entities, wifi->subMenu);
-    ex.replace<DrawHandler>(makeTextDraw("X"));
-    ex.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { ms.activatePreviousMenu(); });
+    auto back = makeMenuItem(mode.entities, item->subMenu);
+    back.replace<DrawHandler>(makeIconDraw(mode.iconBack));
+    back.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { ms.activatePreviousMenu(); });
   }
 
   {
     auto item = makeMenuItem(mode.entities, mode.rootMenu);
-    item.replace<DrawHandler>(makeTextDraw("98%"));
+    item.replace<DrawHandler>(makeIconDraw(mode.iconBattery));
   }
 
   {
     auto item = makeMenuItem(mode.entities, mode.rootMenu);
-    item.replace<DrawHandler>(makeTextDraw("512MB"));
+    item.replace<DrawHandler>(makeIconDraw(mode.iconHdd));
   }
 
   // for (auto &item : mode.rootMenu->items) {
