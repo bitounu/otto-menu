@@ -63,7 +63,7 @@ STAK_EXPORT int init() {
     return [=](Entity e) {
       MenuItem::defaultHandleDraw(e);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
-      fillColor(0.0f, 0.0f, 0.0f);
+      fillColor(1.0f, 1.0f, 1.0f);
       fillTextFitToWidth(text, width, height);
     };
   };
@@ -95,14 +95,19 @@ STAK_EXPORT int init() {
       draw(e.component<Toggle>()->enabled ? mode.iconYes : mode.iconNo);
     });
     tog.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
+      timeline.apply(&e.component<Scale>()->scale)
+          .then<RampTo>(vec2(0.0f, 1.0f), 0.1f, EaseInQuad())
+          .then<RampTo>(vec2(1.0f), 0.1f, EaseOutQuad());
       auto toggle = e.component<Toggle>();
-      toggle->enabled = !toggle->enabled;
+      timeline.cue([=]() mutable { toggle->enabled = !toggle->enabled; }, 0.1f);
     });
     tog.assign<Toggle>(false);
 
     auto back = makeMenuItem(mode.entities, item->subMenu);
     back.replace<DrawHandler>(makeIconDraw(mode.iconBack));
-    back.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { ms.activatePreviousMenu(); });
+    back.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
+      ms.activatePreviousMenu();
+    });
   }
 
   {

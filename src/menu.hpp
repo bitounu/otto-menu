@@ -24,8 +24,8 @@ struct Position {
 struct Rotation : public AngularParticle {};
 
 struct Scale {
-  ch::Output<float> scale;
-  Scale(float scale = 1.0f) : scale{ scale } {}
+  ch::Output<glm::vec2> scale;
+  Scale(const glm::vec2 &scale = glm::vec2(1.0f)) : scale{ scale } {}
 };
 
 struct Color {

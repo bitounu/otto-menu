@@ -5,8 +5,8 @@ using namespace glm;
 
 namespace otto {
 
-const vec3 MenuItem::defaultColor = { 0.0f, 0.8f, 0.5f };
-const vec3 MenuItem::defaultActiveColor = { 0.0f, 1.0f, 0.8f };
+const vec3 MenuItem::defaultColor = { 0.0f, 0.0f, 0.0f };
+const vec3 MenuItem::defaultActiveColor = { 0.0f, 0.0f, 0.0f };
 
 void MenuItem::defaultHandleDraw(Entity entity) {
   beginPath();
@@ -18,19 +18,19 @@ void MenuItem::defaultHandleDraw(Entity entity) {
 void MenuItem::defaultHandleSelect(MenuSystem &ms, Entity entity) {
   timeline.apply(&entity.component<Color>()->color)
       .then<RampTo>(defaultActiveColor, 0.2f, EaseOutQuad());
-  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(1.0f, 0.2f, EaseOutQuad());
+  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(vec2(1.0f), 0.2f, EaseOutQuad());
 }
 
 void MenuItem::defaultHandleDeselect(MenuSystem &ms, Entity entity) {
-  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(0.8f, 0.2f, EaseInOutQuad());
+  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(vec2(0.8f), 0.2f, EaseInOutQuad());
 }
 
 void MenuItem::defaultHandlePress(MenuSystem &ms, Entity entity) {
-  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(0.8f, 0.25f, EaseOutQuad());
+  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(vec2(0.8f), 0.25f, EaseOutQuad());
 }
 
 void MenuItem::defaultHandleRelease(MenuSystem &ms, Entity entity) {
-  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
+  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(vec2(1.0f), 0.25f, EaseOutQuad());
   timeline.apply(&entity.component<Color>()->color)
       .then<RampTo>(defaultActiveColor, 0.25f, EaseOutQuad());
 }
@@ -208,7 +208,7 @@ Entity makeMenuItem(entityx::EntityManager &es, Entity menuEntity) {
   auto entity = es.create();
 
   entity.assign<MenuItem>();
-  entity.assign<Scale>(0.8f);
+  entity.assign<Scale>(vec2(0.8f));
   entity.assign<Color>(MenuItem::defaultColor);
   entity.assign<DrawHandler>(MenuItem::defaultHandleDraw);
   entity.assign<SelectHandler>(MenuItem::defaultHandleSelect);
