@@ -18,38 +18,38 @@ using entityx::ComponentHandle;
 
 struct Position {
   ch::Output<glm::vec2> position;
+  Position(const glm::vec2 &position = {}) : position{ position } {}
 };
 
 struct Rotation : public AngularParticle {};
 
 struct Scale {
   ch::Output<float> scale;
+  Scale(float scale = 1.0f) : scale{ scale } {}
 };
 
 struct Color {
   ch::Output<glm::vec3> color;
+  Color(const glm::vec3 &color = {}) : color{ color } {}
 };
 
 class MenuSystem;
 
-struct DrawHandler {
-  std::function<void(Entity)> draw;
-};
-struct SelectHandler {
-  std::function<void(MenuSystem &, Entity)> select;
-};
-struct DeselectHandler {
-  std::function<void(MenuSystem &, Entity)> deselect;
-};
-struct PressHandler {
-  std::function<void(MenuSystem &, Entity)> press;
-};
-struct ReleaseHandler {
-  std::function<void(MenuSystem &, Entity)> release;
-};
-struct ActivateHandler {
-  std::function<void(MenuSystem &, Entity)> activate;
-};
+#define MAKE_HANDLER(NAME, FN_TYPE, FN_NAME)                                                       \
+  struct NAME {                                                                                    \
+    using HandlerFn = std::function<FN_TYPE>;                                                      \
+    HandlerFn FN_NAME;                                                                             \
+    NAME(const HandlerFn &FN_NAME) : FN_NAME{ FN_NAME } {}                                         \
+  };
+
+MAKE_HANDLER(DrawHandler, void(Entity), draw);
+MAKE_HANDLER(SelectHandler, void(MenuSystem &, Entity), select);
+MAKE_HANDLER(DeselectHandler, void(MenuSystem &, Entity), deselect);
+MAKE_HANDLER(PressHandler, void(MenuSystem &, Entity), press);
+MAKE_HANDLER(ReleaseHandler, void(MenuSystem &, Entity), release);
+MAKE_HANDLER(ActivateHandler, void(MenuSystem &, Entity), activate);
+
+#undef MAKE_HANDLER
 
 struct Menu {
   static void defaultHandleDraw(Entity entity);

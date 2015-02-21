@@ -30,6 +30,7 @@ static MenuMode mode;
 
 struct Toggle {
   bool enabled;
+  Toggle(bool enabled = false) : enabled{ enabled } {}
 };
 
 static void fillTextFitToWidth(const std::string &text, float width, float height) {
