@@ -20,7 +20,7 @@ static const float screenHeight = 96.0f;
 struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
 
-  NSVGimage *iconBack, *iconBattery, *iconHdd, *iconNo, *iconWifi, *iconYes;
+  Svg *iconBack, *iconBattery, *iconHdd, *iconNo, *iconWifi, *iconYes;
 
   float secondsPerFrame;
   uint32_t frameCount = 0;
@@ -44,12 +44,12 @@ STAK_EXPORT int init() {
   loadFont("assets/232MKSD-round-light.ttf");
 
   // Load images
-  mode.iconBack = nsvgParseFromFile("assets/icon-back.svg", "px", 96);
-  mode.iconBattery = nsvgParseFromFile("assets/icon-battery.svg", "px", 96);
-  mode.iconHdd = nsvgParseFromFile("assets/icon-hdd.svg", "px", 96);
-  mode.iconNo = nsvgParseFromFile("assets/icon-no.svg", "px", 96);
-  mode.iconWifi = nsvgParseFromFile("assets/icon-wifi.svg", "px", 96);
-  mode.iconYes = nsvgParseFromFile("assets/icon-yes.svg", "px", 96);
+  mode.iconBack = loadSvg("assets/icon-back.svg", "px", 96);
+  mode.iconBattery = loadSvg("assets/icon-battery.svg", "px", 96);
+  mode.iconHdd = loadSvg("assets/icon-hdd.svg", "px", 96);
+  mode.iconNo = loadSvg("assets/icon-no.svg", "px", 96);
+  mode.iconWifi = loadSvg("assets/icon-wifi.svg", "px", 96);
+  mode.iconYes = loadSvg("assets/icon-yes.svg", "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
@@ -68,7 +68,7 @@ STAK_EXPORT int init() {
     };
   };
 
-  auto makeIconDraw = [](NSVGimage *svg) {
+  auto makeIconDraw = [](Svg *svg) {
     return [svg](Entity e) {
       MenuItem::defaultHandleDraw(e);
       translate(vec2(-48.0f));
