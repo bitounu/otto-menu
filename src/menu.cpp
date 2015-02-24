@@ -131,7 +131,7 @@ void MenuSystem::draw() {
     fillColor(0.0f, 0.0f, 0.0f, mLabelOpacity * 0.5f);
     fill();
 
-    fillColor(1.0f, 1.0f, 1.0f);
+    fillColor(1.0f, 1.0f, 1.0f, mLabelOpacity);
     fillText(mLabelText);
   }
 }
