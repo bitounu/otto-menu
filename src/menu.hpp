@@ -33,6 +33,15 @@ struct Color {
   Color(const glm::vec3 &color = {}) : color{ color } {}
 };
 
+struct Label {
+  using LabelFn = std::function<std::string(Entity)>;
+
+  LabelFn getLabel;
+
+  Label(const LabelFn &getLabel) : getLabel{ getLabel } {}
+  Label(const std::string &label) : getLabel{ [=](Entity e) { return label; } } {}
+};
+
 class MenuSystem;
 
 #define MAKE_HANDLER(NAME, FN_TYPE, FN_NAME)                                                       \
@@ -85,6 +94,9 @@ class MenuSystem : public System<MenuSystem> {
   Entity mActiveMenu;
   Entity mDeactivatingMenu;
 
+  std::string mLabelText;
+  ch::Output<float> mLabelOpacity = 0.0f;
+
   void activateMenu(Entity menuEntity, bool pushToStack);
 
 public:
@@ -103,6 +115,10 @@ public:
   void pressItem();
   void releaseItem();
   void activateItem();
+
+  void displayLabel(const std::string &text, float duration = 0.5f);
+  void displayLabelInfinite(const std::string &text);
+  void hideLabel();
 };
 
 Entity makeMenu(entityx::EntityManager &es);

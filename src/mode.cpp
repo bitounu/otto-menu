@@ -30,6 +30,7 @@ static MenuMode mode;
 
 struct Toggle {
   bool enabled;
+
   Toggle(bool enabled = false) : enabled{ enabled } {}
 };
 
@@ -41,15 +42,15 @@ static void fillTextFitToWidth(const std::string &text, float width, float heigh
 }
 
 STAK_EXPORT int init() {
-  loadFont("assets/232MKSD-round-light.ttf");
+  loadFont("assets/232MKSD-RoundMedium.ttf");
 
   // Load images
-  mode.iconBack = loadSvg("assets/icon-back.svg", "px", 96);
+  mode.iconBack    = loadSvg("assets/icon-back.svg", "px", 96);
   mode.iconBattery = loadSvg("assets/icon-battery.svg", "px", 96);
-  mode.iconHdd = loadSvg("assets/icon-hdd.svg", "px", 96);
-  mode.iconNo = loadSvg("assets/icon-no.svg", "px", 96);
-  mode.iconWifi = loadSvg("assets/icon-wifi.svg", "px", 96);
-  mode.iconYes = loadSvg("assets/icon-yes.svg", "px", 96);
+  mode.iconHdd     = loadSvg("assets/icon-hdd.svg", "px", 96);
+  mode.iconNo      = loadSvg("assets/icon-no.svg", "px", 96);
+  mode.iconWifi    = loadSvg("assets/icon-wifi.svg", "px", 96);
+  mode.iconYes     = loadSvg("assets/icon-yes.svg", "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
@@ -76,13 +77,26 @@ STAK_EXPORT int init() {
     };
   };
 
+  auto assignPressHoldLabel = [](Entity e, const std::string &text) {
+    e.replace<PressHandler>([=](MenuSystem &ms, Entity e) {
+      // MenuItem::defaultHandlePress(ms, e);
+      ms.displayLabelInfinite(text);
+    });
+    e.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
+      // MenuItem::defaultHandleRelease(ms, e);
+      ms.hideLabel();
+    });
+  };
+
   {
     auto modes = makeMenuItem(mode.entities, mode.rootMenu);
     modes.replace<DrawHandler>(makeTextDraw("gif"));
+    assignPressHoldLabel(modes, "No gif :(");
   }
 
   {
     auto itemEntity = makeMenuItem(mode.entities, mode.rootMenu);
+    itemEntity.assign<Label>("wifi");
     itemEntity.replace<DrawHandler>(makeIconDraw(mode.iconWifi));
 
     auto item = itemEntity.component<MenuItem>();
@@ -96,14 +110,25 @@ STAK_EXPORT int init() {
     });
     tog.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
       timeline.apply(&e.component<Scale>()->scale)
-          .then<RampTo>(vec2(0.0f, 1.0f), 0.1f, EaseInQuad())
-          .then<RampTo>(vec2(1.0f), 0.1f, EaseOutQuad());
-      auto toggle = e.component<Toggle>();
-      timeline.cue([=]() mutable { toggle->enabled = !toggle->enabled; }, 0.1f);
+          .then<RampTo>(vec2(0.0f), 0.1f, EaseInQuad())
+          .then<RampTo>(vec2(1.0f), 0.1f, EaseOutQuad())
+          .then<Hold>(vec2(1.0f), 0.15f)
+          .finishFn([e, &ms](ch::Motion<vec2> &m) mutable {
+            ms.displayLabel(e.component<Label>()->getLabel(e));
+          });
+      timeline.cue([e, &ms]() mutable {
+        auto toggle = e.component<Toggle>();
+        toggle->enabled = !toggle->enabled;
+      }, 0.1f);
+      ms.hideLabel();
     });
     tog.assign<Toggle>(false);
+    tog.assign<Label>([](Entity e) {
+      return e.component<Toggle>()->enabled ? "wifi on" : "wifi off";
+    });
 
     auto back = makeMenuItem(mode.entities, item->subMenu);
+    back.assign<Label>("back");
     back.replace<DrawHandler>(makeIconDraw(mode.iconBack));
     back.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
       ms.activatePreviousMenu();
@@ -112,12 +137,16 @@ STAK_EXPORT int init() {
 
   {
     auto item = makeMenuItem(mode.entities, mode.rootMenu);
+    item.assign<Label>("battery");
     item.replace<DrawHandler>(makeIconDraw(mode.iconBattery));
+    assignPressHoldLabel(item, "85%");
   }
 
   {
     auto item = makeMenuItem(mode.entities, mode.rootMenu);
+    item.assign<Label>("memory");
     item.replace<DrawHandler>(makeIconDraw(mode.iconHdd));
+    assignPressHoldLabel(item, "128MiB/4GiB");
   }
 
   // for (auto &item : mode.rootMenu->items) {

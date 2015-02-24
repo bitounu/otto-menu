@@ -96,9 +96,15 @@ void MenuSystem::update(entityx::EntityManager &es, entityx::EventManager &event
   if (timeSinceLastCrank > std::chrono::milliseconds(350)) {
     if (!menu->activeItem && menu->items.size() > 0) {
       menu->activeItem = menu->items[menu->currentIndex];
+
       auto itemHandleSelect = menu->activeItem.component<SelectHandler>();
       if (itemHandleSelect) {
         itemHandleSelect->select(*this, menu->activeItem);
+      }
+
+      auto itemLabel = menu->activeItem.component<Label>();
+      if (itemLabel) {
+        displayLabel(itemLabel->getLabel(menu->activeItem));
       }
     }
     rotation->lerp(float(menu->currentIndex) / menu->items.size() * TWO_PI, 0.2f);
@@ -112,6 +118,22 @@ void MenuSystem::draw() {
     mDeactivatingMenu.component<DrawHandler>()->draw(mDeactivatingMenu);
   }
   mActiveMenu.component<DrawHandler>()->draw(mActiveMenu);
+
+  // Draw label
+  if (mLabelOpacity > 0.0f && mLabelText.size() > 0) {
+    textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
+    fontSize(13);
+
+    auto b = getTextBounds(mLabelText);
+    beginPath();
+    rect(vec2(-48), vec2(96));
+    // roundRect(b.pos - vec2(4.0f), b.size + vec2(8.0f), 5.0f);
+    fillColor(0.0f, 0.0f, 0.0f, mLabelOpacity * 0.5f);
+    fill();
+
+    fillColor(1.0f, 1.0f, 1.0f);
+    fillText(mLabelText);
+  }
 }
 
 void MenuSystem::turn(float amount) {
@@ -191,6 +213,22 @@ void MenuSystem::activateItem() {
     auto handler = activeItem.component<ActivateHandler>();
     if (handler) handler->activate(*this, activeItem);
   }
+}
+
+void MenuSystem::displayLabel(const std::string &text, float duration) {
+  mLabelText = text;
+  timeline.apply(&mLabelOpacity)
+      .then<RampTo>(1.0f, 0.2f, EaseOutQuad())
+      .then<Hold>(1.0f, duration)
+      .then<RampTo>(0.0f, 0.2f, EaseInQuad());
+}
+
+void MenuSystem::displayLabelInfinite(const std::string &text) {
+  displayLabel(text, std::numeric_limits<float>::max());
+}
+
+void MenuSystem::hideLabel() {
+  timeline.apply(&mLabelOpacity).then<RampTo>(0.0f, 0.2f, EaseInQuad());
 }
 
 Entity makeMenu(entityx::EntityManager &es) {
