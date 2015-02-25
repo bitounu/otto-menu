@@ -172,7 +172,18 @@ STAK_EXPORT int draw() {
 
   setTransform(defaultMatrix);
 
+  pushTransform();
   mode.systems.system<MenuSystem>()->draw();
+  popTransform();
+
+  // Imitate a cheesy circular mask
+  beginPath();
+  rect(0, 0, 96, 96);
+  circle(48, 48, 48);
+  fillRuleEvenOdd();
+  fillColor(0, 0, 0);
+  fill();
+  fillRuleNonZero();
 
   return 0;
 }
