@@ -10,7 +10,7 @@ const vec3 MenuItem::defaultActiveColor = { 0.0f, 0.0f, 0.0f };
 
 void MenuItem::defaultHandleDraw(Entity entity) {
   beginPath();
-  circle(vec2(), 44);
+  circle(vec2(), 45.0f);
   fillColor(entity.component<Color>()->color());
   fill();
 }
@@ -22,7 +22,7 @@ void MenuItem::defaultHandleSelect(MenuSystem &ms, Entity entity) {
 }
 
 void MenuItem::defaultHandleDeselect(MenuSystem &ms, Entity entity) {
-  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(vec2(0.8f), 0.2f, EaseInOutQuad());
+  timeline.apply(&entity.component<Scale>()->scale).then<RampTo>(vec2(0.8f), 0.2f, EaseOutQuad());
 }
 
 void MenuItem::defaultHandlePress(MenuSystem &ms, Entity entity) {
@@ -44,7 +44,7 @@ void Menu::defaultHandleDraw(Entity entity) {
   auto menu = entity.component<Menu>();
   const auto &menuItems = menu->items;
 
-  auto radius = regularPolyRadius(menu->tileRadius * 2.2f, menuItems.size());
+  auto radius = regularPolyRadius(menu->tileRadius * 2.0f, menuItems.size());
   auto angleIncr = -TWO_PI / menuItems.size();
 
   pushTransform();
@@ -86,7 +86,7 @@ void MenuSystem::update(entityx::EntityManager &es, entityx::EventManager &event
   auto menu = mActiveMenu.component<Menu>();
 
   auto rotation = mActiveMenu.component<Rotation>();
-  rotation->friction = menu->activeItem ? 0.3f : 0.15f;
+  rotation->friction = menu->activeItem ? 0.4f : 0.3f;
   rotation->step();
 
   menu->indexedRotation = rotation->angle / TWO_PI * menu->items.size();
@@ -107,7 +107,7 @@ void MenuSystem::update(entityx::EntityManager &es, entityx::EventManager &event
         displayLabel(itemLabel->getLabel(menu->activeItem));
       }
     }
-    rotation->lerp(float(menu->currentIndex) / menu->items.size() * TWO_PI, 0.2f);
+    rotation->lerp(float(menu->currentIndex) / menu->items.size() * TWO_PI, 0.3f);
   }
 }
 
@@ -148,6 +148,7 @@ void MenuSystem::turn(float amount) {
       itemHandleDeselect->deselect(*this, menu->activeItem);
     }
     menu->activeItem.invalidate();
+    hideLabel();
   }
 }
 

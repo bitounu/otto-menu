@@ -178,7 +178,7 @@ STAK_EXPORT int draw() {
 }
 
 STAK_EXPORT int crank_rotated(int amount) {
-  mode.systems.system<MenuSystem>()->turn(amount * -0.2f);
+  mode.systems.system<MenuSystem>()->turn(amount * -0.25f);
   return 0;
 }
 
