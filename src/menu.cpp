@@ -68,10 +68,10 @@ void Menu::defaultHandleDraw(Entity entity) {
   drawItem(menu->currentIndex);
 
   float offset = menu->indexedRotation - menu->currentIndex;
-  if (offset < -0.25f) {
+  if (offset < -0.1f || offset > 0.5f) {
     drawItem((menuItems.size() + menu->currentIndex - 1) % menuItems.size());
   }
-  if (offset > 0.25f) {
+  else if (offset > 0.1f) {
     drawItem((menu->currentIndex + 1) % menuItems.size());
   }
 
