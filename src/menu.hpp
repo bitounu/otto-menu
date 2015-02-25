@@ -111,6 +111,7 @@ public:
 
   void activateMenu(Entity menuEntity);
   void activatePreviousMenu();
+  void indicatePreviousMenu();
 
   void pressItem();
   void releaseItem();

@@ -191,6 +191,13 @@ void MenuSystem::activatePreviousMenu() {
   }
 }
 
+void MenuSystem::indicatePreviousMenu() {
+  if (!mDeactivatingMenu && mMenuStack.size()) {
+    timeline.apply(&mActiveMenu.component<Position>()->position)
+        .then<RampTo>(vec2(10.0f, 0.0f), 0.2f, EaseOutQuad());
+  }
+}
+
 void MenuSystem::pressItem() {
   auto activeItem = mActiveMenu.component<Menu>()->activeItem;
   if (activeItem) {

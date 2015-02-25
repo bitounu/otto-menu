@@ -59,8 +59,7 @@ STAK_EXPORT int init() {
 
   mode.systems.configure();
 
-  auto makeTextDraw =
-      [](const std::string &text, float width = screenWidth * 0.6f, float height = 40.0f) {
+  auto makeTextDraw = [](const std::string &text, float width = 50.0f, float height = 40.0f) {
     return [=](Entity e) {
       MenuItem::defaultHandleDraw(e);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
@@ -78,14 +77,8 @@ STAK_EXPORT int init() {
   };
 
   auto assignPressHoldLabel = [](Entity e, const std::string &text) {
-    e.replace<PressHandler>([=](MenuSystem &ms, Entity e) {
-      // MenuItem::defaultHandlePress(ms, e);
-      ms.displayLabelInfinite(text);
-    });
-    e.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
-      // MenuItem::defaultHandleRelease(ms, e);
-      ms.hideLabel();
-    });
+    e.replace<PressHandler>([=](MenuSystem &ms, Entity e) { ms.displayLabelInfinite(text); });
+    e.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) { ms.hideLabel(); });
   };
 
   {
@@ -149,10 +142,6 @@ STAK_EXPORT int init() {
     assignPressHoldLabel(item, "128MiB/4GiB");
   }
 
-  // for (auto &item : mode.rootMenu->items) {
-  //   if (item->handleDeselect) item->handleDeselect(*item);
-  // }
-
   return 0;
 }
 
@@ -176,7 +165,7 @@ STAK_EXPORT int update(float dt) {
 }
 
 STAK_EXPORT int draw() {
-  static const mat3 defaultMatrix{ 0.0, -1.0, 0.0, 1.0, -0.0, 0.0, 0.0, screenHeight, 1.0 };
+  static const mat3 defaultMatrix = { 0.0, -1.0, 0.0, 1.0, -0.0, 0.0, 0.0, screenHeight, 1.0 };
 
   clearColor(0, 0, 0);
   clear(0, 0, 96, 96);
@@ -206,11 +195,12 @@ STAK_EXPORT int shutter_button_released() {
 }
 
 STAK_EXPORT int power_button_pressed() {
-  mode.systems.system<MenuSystem>()->activatePreviousMenu();
+  mode.systems.system<MenuSystem>()->indicatePreviousMenu();
   return 0;
 }
 
 STAK_EXPORT int power_button_released() {
+  mode.systems.system<MenuSystem>()->activatePreviousMenu();
   return 0;
 }
 
