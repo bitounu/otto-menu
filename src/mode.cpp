@@ -172,18 +172,19 @@ STAK_EXPORT int draw() {
 
   setTransform(defaultMatrix);
 
+  // NOTE(ryan): Apply a circular mask to simulate a round display. We may want to move this to
+  // stak-sdk so that the mask is enforced.
+  clearMask(0, 0, screenWidth, screenHeight);
+  beginMask(screenWidth, screenHeight);
+  beginPath();
+  circle(48.0f, 48.0f, 48.0f);
+  fillToMask();
+
   pushTransform();
   mode.systems.system<MenuSystem>()->draw();
   popTransform();
 
-  // Imitate a cheesy circular mask
-  beginPath();
-  rect(0, 0, 96, 96);
-  circle(48, 48, 48);
-  fillRuleEvenOdd();
-  fillColor(0, 0, 0);
-  fill();
-  fillRuleNonZero();
+  endMask();
 
   return 0;
 }
