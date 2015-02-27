@@ -14,13 +14,15 @@ using namespace glm;
 using namespace choreograph;
 using namespace otto;
 
-static const float screenWidth = 96.0f;
-static const float screenHeight = 96.0f;
+static const int screenWidth = 96;
+static const int screenHeight = 96;
 
 struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
 
-  Svg *iconBack, *iconBattery, *iconHdd, *iconNo, *iconWifi, *iconYes;
+  Svg *iconBack, *iconBattery, *iconBatteryMask, *iconHdd, *iconNo, *iconWifi, *iconYes;
+
+  double time = 0.0;
 
   float secondsPerFrame;
   uint32_t frameCount = 0;
@@ -45,12 +47,13 @@ STAK_EXPORT int init() {
   loadFont("assets/232MKSD-RoundMedium.ttf");
 
   // Load images
-  mode.iconBack    = loadSvg("assets/icon-back.svg", "px", 96);
-  mode.iconBattery = loadSvg("assets/icon-battery.svg", "px", 96);
-  mode.iconHdd     = loadSvg("assets/icon-hdd.svg", "px", 96);
-  mode.iconNo      = loadSvg("assets/icon-no.svg", "px", 96);
-  mode.iconWifi    = loadSvg("assets/icon-wifi.svg", "px", 96);
-  mode.iconYes     = loadSvg("assets/icon-yes.svg", "px", 96);
+  mode.iconBack        = loadSvg("assets/icon-back.svg", "px", 96);
+  mode.iconBattery     = loadSvg("assets/icon-battery.svg", "px", 96);
+  mode.iconBatteryMask = loadSvg("assets/icon-battery-mask.svg", "px", 96);
+  mode.iconHdd         = loadSvg("assets/icon-hdd.svg", "px", 96);
+  mode.iconNo          = loadSvg("assets/icon-no.svg", "px", 96);
+  mode.iconWifi        = loadSvg("assets/icon-wifi.svg", "px", 96);
+  mode.iconYes         = loadSvg("assets/icon-yes.svg", "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
@@ -131,7 +134,31 @@ STAK_EXPORT int init() {
   {
     auto item = makeMenuItem(mode.entities, mode.rootMenu);
     item.assign<Label>("battery");
-    item.replace<DrawHandler>(makeIconDraw(mode.iconBattery));
+    item.replace<DrawHandler>([](Entity e) {
+      ScopedMask mask(screenWidth, screenHeight);
+      {
+        ScopedTransform xf;
+        translate(vec2(-48.0f));
+
+        beginMask();
+        draw(mode.iconBatteryMask);
+        endMask();
+
+        beginPath();
+        rect(0, 0, 96, 96);
+        fillColor(vec3(0.35f));
+        fill();
+      }
+
+      beginPath();
+      float t = mode.time * 2.0f;
+      moveTo(-48.0f, std::sin(t) / M_PI * 40.0f);
+      lineTo(48.0f, std::sin(t + 0.5f) / M_PI * 40.0f);
+      lineTo(48, -48);
+      lineTo(-48, -48);
+      fillColor(0, 1, 0);
+      fill();
+    });
     assignPressHoldLabel(item, "85%");
   }
 
@@ -150,6 +177,8 @@ STAK_EXPORT int shutdown() {
 }
 
 STAK_EXPORT int update(float dt) {
+  mode.time += dt;
+
   timeline.step(dt);
   mode.systems.update<MenuSystem>(dt);
 
@@ -174,17 +203,16 @@ STAK_EXPORT int draw() {
 
   // NOTE(ryan): Apply a circular mask to simulate a round display. We may want to move this to
   // stak-sdk so that the mask is enforced.
-  clearMask(0, 0, screenWidth, screenHeight);
-  beginMask(screenWidth, screenHeight);
+  fillMask(0, 0, screenWidth, screenHeight);
   beginPath();
   circle(48.0f, 48.0f, 48.0f);
-  fillToMask();
-
-  pushTransform();
-  mode.systems.system<MenuSystem>()->draw();
-  popTransform();
-
+  beginMask();
+  fill();
   endMask();
+  enableMask();
+
+  ScopedMask mask = { screenWidth, screenHeight };
+  mode.systems.system<MenuSystem>()->draw();
 
   return 0;
 }

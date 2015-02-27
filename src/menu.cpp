@@ -47,7 +47,7 @@ void Menu::defaultHandleDraw(Entity entity) {
   auto radius = regularPolyRadius(menu->tileRadius * 2.0f, menuItems.size());
   auto angleIncr = -TWO_PI / menuItems.size();
 
-  pushTransform();
+  ScopedTransform xf;
   translate(entity.component<Position>()->position() + vec2(radius, 0.0f));
   rotate(entity.component<Rotation>()->angle);
 
@@ -56,12 +56,11 @@ void Menu::defaultHandleDraw(Entity entity) {
     auto item = menuItems[i];
     auto handler = item.component<DrawHandler>();
     if (handler) {
-      pushTransform();
+      ScopedTransform xf;
       rotate(float(i) / menuItems.size() * -TWO_PI);
       translate(-radius, 0.0f);
       scale(item.component<Scale>()->scale());
       handler->draw(item);
-      popTransform();
     }
   };
 
@@ -74,8 +73,6 @@ void Menu::defaultHandleDraw(Entity entity) {
   else if (offset > 0.1f) {
     drawItem((menu->currentIndex + 1) % menuItems.size());
   }
-
-  popTransform();
 }
 
 MenuSystem::MenuSystem(const vec2 &screenSize) : screenSize{ screenSize } {
