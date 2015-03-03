@@ -44,16 +44,18 @@ static void fillTextFitToWidth(const std::string &text, float width, float heigh
 }
 
 STAK_EXPORT int init() {
-  loadFont("assets/232MKSD-RoundMedium.ttf");
+  auto assets = std::string(stak_assets_path());
+
+  loadFont(assets + "232MKSD-round-medium.ttf");
 
   // Load images
-  mode.iconBack        = loadSvg("assets/icon-back.svg", "px", 96);
-  mode.iconBattery     = loadSvg("assets/icon-battery.svg", "px", 96);
-  mode.iconBatteryMask = loadSvg("assets/icon-battery-mask.svg", "px", 96);
-  mode.iconHdd         = loadSvg("assets/icon-hdd.svg", "px", 96);
-  mode.iconNo          = loadSvg("assets/icon-no.svg", "px", 96);
-  mode.iconWifi        = loadSvg("assets/icon-wifi.svg", "px", 96);
-  mode.iconYes         = loadSvg("assets/icon-yes.svg", "px", 96);
+  mode.iconBack        = loadSvg(assets + "icon-back.svg", "px", 96);
+  mode.iconBattery     = loadSvg(assets + "icon-battery.svg", "px", 96);
+  mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
+  mode.iconHdd         = loadSvg(assets + "icon-hdd.svg", "px", 96);
+  mode.iconNo          = loadSvg(assets + "icon-no.svg", "px", 96);
+  mode.iconWifi        = loadSvg(assets + "icon-wifi.svg", "px", 96);
+  mode.iconYes         = loadSvg(assets + "icon-yes.svg", "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
@@ -85,9 +87,12 @@ STAK_EXPORT int init() {
   };
 
   {
-    auto modes = makeMenuItem(mode.entities, mode.rootMenu);
-    modes.replace<DrawHandler>(makeTextDraw("gif"));
-    assignPressHoldLabel(modes, "No gif :(");
+    auto gif = makeMenuItem(mode.entities, mode.rootMenu);
+    gif.replace<DrawHandler>(makeTextDraw("gif"));
+    // assignPressHoldLabel(modes, "No gif :(");
+    gif.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
+      stak_activate_mode();
+    });
   }
 
   {
