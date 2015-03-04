@@ -16,11 +16,12 @@ using namespace otto;
 
 static const int screenWidth = 96;
 static const int screenHeight = 96;
+static const vec2 screenSize = { screenWidth, screenHeight };
 
 struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
 
-  Svg *iconBack, *iconBattery, *iconBatteryMask, *iconHdd, *iconNo, *iconWifi, *iconYes;
+  Svg *iconBack, *iconBatteryMask, *iconMemoryMask, *iconNo, *iconWifi, *iconYes;
 
   double time = 0.0;
 
@@ -50,16 +51,15 @@ STAK_EXPORT int init() {
 
   // Load images
   mode.iconBack        = loadSvg(assets + "icon-back.svg", "px", 96);
-  mode.iconBattery     = loadSvg(assets + "icon-battery.svg", "px", 96);
   mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
-  mode.iconHdd         = loadSvg(assets + "icon-hdd.svg", "px", 96);
+  mode.iconMemoryMask  = loadSvg(assets + "icon-memory-mask.svg", "px", 96);
   mode.iconNo          = loadSvg(assets + "icon-no.svg", "px", 96);
   mode.iconWifi        = loadSvg(assets + "icon-wifi.svg", "px", 96);
   mode.iconYes         = loadSvg(assets + "icon-yes.svg", "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
-  auto menus = mode.systems.add<MenuSystem>(vec2(screenWidth, screenHeight));
+  auto menus = mode.systems.add<MenuSystem>(screenSize);
   menus->activateMenu(mode.rootMenu);
 
   mode.systems.configure();
@@ -86,15 +86,20 @@ STAK_EXPORT int init() {
     e.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) { ms.hideLabel(); });
   };
 
+  //
+  // GIF Mode
+  //
   {
     auto gif = makeMenuItem(mode.entities, mode.rootMenu);
     gif.replace<DrawHandler>(makeTextDraw("gif"));
-    // assignPressHoldLabel(modes, "No gif :(");
     gif.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
       stak_activate_mode();
     });
   }
 
+  //
+  // Wifi
+  //
   {
     auto itemEntity = makeMenuItem(mode.entities, mode.rootMenu);
     itemEntity.assign<Label>("wifi");
@@ -136,25 +141,27 @@ STAK_EXPORT int init() {
     });
   }
 
+  //
+  // Battery
+  //
   {
     auto item = makeMenuItem(mode.entities, mode.rootMenu);
     item.assign<Label>("battery");
     item.replace<DrawHandler>([](Entity e) {
-      ScopedMask mask(screenWidth, screenHeight);
+      ScopedMask mask(screenSize);
       {
         ScopedTransform xf;
-        translate(vec2(-48.0f));
+        translate(screenSize * -0.5f);
 
         beginMask();
         draw(mode.iconBatteryMask);
         endMask();
 
         beginPath();
-        rect(0, 0, 96, 96);
+        rect(vec2(), screenSize);
         fillColor(vec3(0.35f));
         fill();
       }
-
       beginPath();
       float t = mode.time * 2.0f;
       moveTo(-48.0f, std::sin(t) / M_PI * 40.0f);
@@ -164,13 +171,31 @@ STAK_EXPORT int init() {
       fillColor(0, 1, 0);
       fill();
     });
-    assignPressHoldLabel(item, "85%");
+    assignPressHoldLabel(item, "99%");
   }
 
+  //
+  // Memory
+  //
   {
     auto item = makeMenuItem(mode.entities, mode.rootMenu);
     item.assign<Label>("memory");
-    item.replace<DrawHandler>(makeIconDraw(mode.iconHdd));
+    item.replace<DrawHandler>([](Entity e) {
+      ScopedMask mask(screenSize);
+      {
+        ScopedTransform xf;
+        translate(screenSize * -0.5f);
+
+        beginMask();
+        draw(mode.iconMemoryMask);
+        endMask();
+
+        beginPath();
+        rect(vec2(), screenSize);
+        fillColor(vec3(0.35f));
+        fill();
+      }
+    });
     assignPressHoldLabel(item, "128MiB/4GiB");
   }
 
@@ -208,7 +233,7 @@ STAK_EXPORT int draw() {
 
   // NOTE(ryan): Apply a circular mask to simulate a round display. We may want to move this to
   // stak-sdk so that the mask is enforced.
-  fillMask(0, 0, screenWidth, screenHeight);
+  fillMask(vec2(), screenSize);
   beginPath();
   circle(48.0f, 48.0f, 48.0f);
   beginMask();
@@ -216,7 +241,7 @@ STAK_EXPORT int draw() {
   endMask();
   enableMask();
 
-  ScopedMask mask = { screenWidth, screenHeight };
+  ScopedMask mask(screenSize);
   mode.systems.system<MenuSystem>()->draw();
 
   return 0;
