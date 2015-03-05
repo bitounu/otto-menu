@@ -2,7 +2,9 @@
 #include "gfx.hpp"
 #include "util.hpp"
 #include "menu.hpp"
+#include "rand.hpp"
 
+#include "gtx/string_cast.hpp"
 #include "entityx/entityx.h"
 
 // Debug
@@ -35,6 +37,72 @@ struct Toggle {
   bool enabled;
 
   Toggle(bool enabled = false) : enabled{ enabled } {}
+};
+
+struct Bubble {
+  vec2 position;
+  vec3 color;
+  ch::Output<float> scale;
+};
+
+struct Bubbles {
+  std::vector<Bubble> bubbles;
+  std::vector<vec3> colors = { colorBGR(0x00ADEF), colorBGR(0xEC008B), colorBGR(0xFFF100) };
+
+  Rect bounds;
+  float bubbleRadius;
+  size_t bubbleCount = 0;
+
+  VGPath circlePath;
+
+  Bubbles(const Rect &bounds, float bubbleRadius)
+  : bounds(bounds),
+    bubbleRadius{ bubbleRadius },
+    circlePath{ vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_F, 1.0f, 0.0f, 0, 0,
+                             VG_PATH_CAPABILITY_ALL) } {
+    size_t maxBubbles = bounds.getArea() / (M_PI * (bubbleRadius * bubbleRadius)) * 2.0f;
+    bubbles.resize(maxBubbles);
+
+    circle(circlePath, 0, 0, bubbleRadius);
+    setCount(bubbles.size());
+  }
+  ~Bubbles() {
+    vgDestroyPath(circlePath);
+  }
+
+  void startBubbleAnim(size_t i, bool delay) {
+    auto &bubble = bubbles[i];
+    bubble.position = randVec2(bounds);
+    bubble.color = colors[randInt(colors.size())];
+    timeline.apply(&bubble.scale)
+        .then<Hold>(0.0f, delay ? float(i) / bubbleCount * 2.0f : 0.0f)
+        .then<RampTo>(1.0f, 1.0f, EaseOutQuad())
+        .then<RampTo>(0.0f, 1.0f, EaseInQuad())
+        .finishFn([=](ch::Motion<float> &m) { startBubbleAnim(i, false); });
+  }
+
+  void stopBubbleAnim(size_t i) {
+    timeline.apply(&bubbles[i].scale).then<RampTo>(0.0f, 1.0f, EaseOutQuad());
+  }
+
+  void setCount(size_t count) {
+    bubbleCount = count;
+    for (size_t i = 0; i < bubbles.size(); ++i) {
+      if (i < count) startBubbleAnim(i, true);
+      else stopBubbleAnim(i);
+    }
+  }
+
+  void draw() {
+    for (size_t i = 0; i < bubbleCount; ++i) {
+      const auto &bubble = bubbles[i];
+      ScopedTransform xf;
+      translate(bubble.position);
+      scale(bubble.scale());
+      fillColor(bubble.color);
+      vgDrawPath(circlePath, VG_FILL_PATH);
+    }
+  }
 };
 
 static void fillTextFitToWidth(const std::string &text, float width, float height) {
@@ -180,21 +248,22 @@ STAK_EXPORT int init() {
   {
     auto item = makeMenuItem(mode.entities, mode.rootMenu);
     item.assign<Label>("memory");
+    item.assign<Bubbles>(Rect(15, 18, 65, 56), 8.0f);
     item.replace<DrawHandler>([](Entity e) {
       ScopedMask mask(screenSize);
-      {
-        ScopedTransform xf;
-        translate(screenSize * -0.5f);
+      ScopedTransform xf;
+      translate(screenSize * -0.5f);
 
-        beginMask();
-        draw(mode.iconMemoryMask);
-        endMask();
+      beginMask();
+      draw(mode.iconMemoryMask);
+      endMask();
 
-        beginPath();
-        rect(vec2(), screenSize);
-        fillColor(vec3(0.35f));
-        fill();
-      }
+      beginPath();
+      rect(vec2(), screenSize);
+      fillColor(vec3(0.35f));
+      fill();
+
+      e.component<Bubbles>()->draw();
     });
     assignPressHoldLabel(item, "128MiB/4GiB");
   }
