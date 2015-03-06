@@ -20,7 +20,8 @@ static const int screenWidth = 96, screenHeight = 96;
 static const vec2 screenSize = { screenWidth, screenHeight };
 static const Rect screenBounds = { vec2(), screenSize };
 
-static const float displaySleepDelay = 10.0f;
+static const float displayDaydreamDelay = 10.0f;
+static const float displaySleepDelay = 30.0f;
 
 struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
@@ -185,13 +186,16 @@ static bool displayIsSleeping() {
 }
 
 static void sleepDisplay() {
-  timeline.apply(&mode.displayBrightness).then<RampTo>(0.0f, 2.0f, EaseInQuad());
+  timeline.apply(&mode.displayBrightness)
+      .then<RampTo>(0.33f, 2.0f, EaseInOutQuad())
+      .then<Hold>(0.33f, displaySleepDelay - displayDaydreamDelay)
+      .then<RampTo>(0.0f, 2.0f, EaseInQuad());
 }
 
 static bool wakeDisplay() {
   if (mode.displaySleepTimeout) mode.displaySleepTimeout->cancel();
   timeline.apply(&mode.displayBrightness).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
-  mode.displaySleepTimeout = timeline.cue([] { sleepDisplay(); }, displaySleepDelay).getControl();
+  mode.displaySleepTimeout = timeline.cue([] { sleepDisplay(); }, displayDaydreamDelay).getControl();
   return displayIsSleeping();
 }
 
@@ -286,7 +290,7 @@ STAK_EXPORT int init() {
       fontSize(13);
       textAlign(ALIGN_CENTER | ALIGN_BASELINE);
       fillColor(vec3(1));
-      fillText(e.component<Toggle>()->enabled ? "ON" : "OFF");
+      fillText(e.component<Toggle>()->enabled ? "OTTO" : "OFF");
     });
     wifi.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
       auto toggle = e.component<Toggle>();
