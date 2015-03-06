@@ -46,7 +46,7 @@ struct Toggle {
 
 static void sleepDisplay() {
   timeline.apply(&mode.displayBrightness)
-      .then<RampTo>(0.33f, 2.0f, EaseInOutQuad())
+      .then<RampTo>(0.5f, 2.0f, EaseInOutQuad())
       .then<Hold>(0.5f, displaySleepDelay - displayDaydreamDelay)
       .then<RampTo>(0.0f, 2.0f, EaseInQuad())
       .finishFn([](ch::Motion<float> &m) { mode.displayIsSleeping = true; });
