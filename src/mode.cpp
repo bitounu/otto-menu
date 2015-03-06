@@ -3,11 +3,10 @@
 #include "util.hpp"
 #include "menu.hpp"
 #include "rand.hpp"
+#include "fx.hpp"
 
 #include "gtx/string_cast.hpp"
 #include "entityx/entityx.h"
-
-#include <algorithm>
 
 // Debug
 #include <iostream>
@@ -23,7 +22,7 @@ static const Rect screenBounds = { vec2(), screenSize };
 static const float displayDaydreamDelay = 10.0f;
 static const float displaySleepDelay = 30.0f;
 
-struct MenuMode : public entityx::EntityX {
+static struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
 
   Svg *iconBack, *iconBatteryMask, *iconMemoryMask, *iconNo, *iconWifi, *iconYes;
@@ -35,151 +34,13 @@ struct MenuMode : public entityx::EntityX {
 
   ch::TimelineItemControlRef displaySleepTimeout;
   ch::Output<float> displayBrightness = 1.0f;
-};
-
-static MenuMode mode;
+} mode;
 
 struct Toggle {
   bool enabled;
 
   Toggle(bool enabled = false) : enabled{ enabled } {}
 };
-
-struct Bubble {
-  vec2 position;
-  vec3 color;
-  ch::Output<float> scale;
-};
-
-struct Bubbles {
-  std::vector<Bubble> bubbles;
-  std::vector<vec3> colors = { colorBGR(0x00ADEF), colorBGR(0xEC008B), colorBGR(0xFFF100) };
-
-  Rect bounds;
-  float bubbleRadius;
-  size_t bubbleCount = 0;
-
-  VGPath circlePath;
-
-  Bubbles(const Rect &bounds, float bubbleRadius)
-  : bounds(bounds),
-    bubbleRadius{ bubbleRadius },
-    circlePath{ vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_F, 1.0f, 0.0f, 0, 0,
-                             VG_PATH_CAPABILITY_ALL) } {
-    size_t maxBubbles = bounds.getArea() / (M_PI * (bubbleRadius * bubbleRadius)) * 2.0f;
-    bubbles.resize(maxBubbles);
-
-    circle(circlePath, 0, 0, bubbleRadius);
-    setCount(bubbles.size());
-  }
-  ~Bubbles() {
-    vgDestroyPath(circlePath);
-  }
-
-  void startBubbleAnim(size_t i, bool delay) {
-    auto &bubble = bubbles[i];
-    bubble.position = randVec2(bounds);
-    bubble.color = colors[randInt(colors.size())];
-    timeline.apply(&bubble.scale)
-        .then<Hold>(0.0f, delay ? float(i) / bubbleCount * 2.0f : 0.0f)
-        .then<RampTo>(1.0f, 1.0f, EaseOutQuad())
-        .then<RampTo>(0.0f, 1.0f, EaseInQuad())
-        .finishFn([=](ch::Motion<float> &m) { startBubbleAnim(i, false); });
-  }
-
-  void stopBubbleAnim(size_t i) {
-    timeline.apply(&bubbles[i].scale).then<RampTo>(0.0f, 1.0f, EaseOutQuad());
-  }
-
-  void setCount(size_t count) {
-    bubbleCount = count;
-    for (size_t i = 0; i < bubbles.size(); ++i) {
-      if (i < count) startBubbleAnim(i, true);
-      else stopBubbleAnim(i);
-    }
-  }
-
-  void draw() {
-    for (size_t i = 0; i < bubbleCount; ++i) {
-      const auto &bubble = bubbles[i];
-      ScopedTransform xf;
-      translate(bubble.position);
-      scale(bubble.scale());
-      fillColor(bubble.color);
-      vgDrawPath(circlePath, VG_FILL_PATH);
-    }
-  }
-};
-
-struct Blip {
-  Output<vec3> color;
-  Output<float> scale = 0.0f;
-
-  void draw() {
-    beginPath();
-    circle(0, 0, scale());
-    fillColor(color());
-    fill();
-  }
-};
-
-struct Blips {
-  std::vector<std::unique_ptr<Blip>> blips;
-  Blip centerBlip;
-
-  std::vector<vec3> colors = { colorBGR(0x00ADEF), colorBGR(0xEC008B), colorBGR(0xFFF100) };
-
-  size_t nextColorIndex = 0;
-  float blipRadius = 40.0f;
-  bool animating = false;
-
-  Blips() {
-    for (size_t i = 0; i < 2; ++i) {
-      blips.push_back(std::make_unique<Blip>());
-    }
-    centerBlip.color = vec3(0.35f);
-    centerBlip.scale = 7.0f;
-  }
-
-  void startBlipAnim(Blip &blip, float delay) {
-    const auto color = colors[nextColorIndex];
-
-    timeline.apply(&blip.scale)
-        .then<Hold>(7.0f, delay)
-        .then<RampTo>(blipRadius, 2.0f, EaseOutQuad())
-        .then<Hold>(0.0f, 0.0f);
-    timeline.apply(&blip.color)
-        .then<Hold>(color, delay + 1.0f)
-        .then<RampTo>(vec3(), 1.0f, EaseOutQuad())
-        .finishFn([this, &blip](ch::Motion<vec3> &m) {
-          std::rotate(blips.begin(), blips.begin() + 1, blips.end());
-          if (animating) startBlipAnim(blip, 0.0f);
-        });
-
-    timeline.apply(&centerBlip.color)
-        .then<Hold>(glm::mix(color, vec3(1), 0.75f), 0.0f)
-        .then<RampTo>(vec3(0.35f), 0.5f, EaseInQuad());
-
-    nextColorIndex = (nextColorIndex + 1) % colors.size();
-  }
-
-  void startAnim() {
-    animating = true;
-    for (size_t i = 0; i < blips.size(); ++i) {
-      startBlipAnim(*blips[i], float(i) / blips.size() * 2.0f);
-    }
-  }
-
-  void stopAnim() { animating = false; }
-
-  void draw() {
-    for (const auto &blip : blips) {
-      blip->draw();
-    }
-  }
-  void drawCenter() { centerBlip.draw(); }
-};
-
 
 static bool displayIsSleeping() {
   return mode.displayBrightness() == 0.0f;
