@@ -21,6 +21,7 @@ using namespace otto;
 
 static const int screenWidth = 96, screenHeight = 96;
 static const vec2 screenSize = { screenWidth, screenHeight };
+static const Rect screenBounds = { vec2(), screenSize };
 
 struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
@@ -297,7 +298,7 @@ STAK_EXPORT int init() {
         endMask();
 
         beginPath();
-        rect(vec2(), screenSize);
+        rect(screenBounds);
         fillColor(vec3(0.35f));
         fill();
       }
@@ -329,7 +330,7 @@ STAK_EXPORT int init() {
       endMask();
 
       beginPath();
-      rect(vec2(), screenSize);
+      rect(screenBounds);
       fillColor(vec3(0.35f));
       fill();
 
@@ -365,14 +366,14 @@ STAK_EXPORT int update(float dt) {
 STAK_EXPORT int draw() {
   static const mat3 defaultMatrix = { 0.0, -1.0, 0.0, 1.0, -0.0, 0.0, 0.0, screenHeight, 1.0 };
 
-  clearColor(0, 0, 0);
-  clear(0, 0, 96, 96);
+  clearColor(vec3(0.0f));
+  clear(screenBounds);
 
   setTransform(defaultMatrix);
 
   // NOTE(ryan): Apply a circular mask to simulate a round display. We may want to move this to
   // stak-sdk so that the mask is enforced.
-  fillMask(vec2(), screenSize);
+  fillMask(screenBounds);
   beginPath();
   circle(48.0f, 48.0f, 48.0f);
   beginMask();
