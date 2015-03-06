@@ -180,15 +180,21 @@ struct Blips {
 };
 
 
+static bool displayIsSleeping() {
+  return mode.displayBrightness() == 0.0f;
+}
+
 static void sleepDisplay() {
   timeline.apply(&mode.displayBrightness).then<RampTo>(0.0f, 2.0f, EaseInQuad());
 }
 
-static void wakeDisplay() {
+static bool wakeDisplay() {
   if (mode.displaySleepTimeout) mode.displaySleepTimeout->cancel();
   timeline.apply(&mode.displayBrightness).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
   mode.displaySleepTimeout = timeline.cue([] { sleepDisplay(); }, displaySleepDelay).getControl();
+  return displayIsSleeping();
 }
+
 
 static void fillTextFitToWidth(const std::string &text, float width, float height) {
   fontSize(1.0f);
@@ -381,7 +387,7 @@ STAK_EXPORT int update(float dt) {
 STAK_EXPORT int draw() {
   static const mat3 defaultMatrix = { 0.0, -1.0, 0.0, 1.0, -0.0, 0.0, 0.0, screenHeight, 1.0 };
 
-  if (mode.displayBrightness() == 0.0f) return 0;
+  if (displayIsSleeping()) return 0;
 
   clearColor(vec3(0.0f));
   clear(screenBounds);
@@ -414,15 +420,13 @@ STAK_EXPORT int crank_rotated(int amount) {
 }
 
 STAK_EXPORT int shutter_button_pressed() {
-  mode.systems.system<MenuSystem>()->pressItem();
-  wakeDisplay();
+  if (!wakeDisplay()) mode.systems.system<MenuSystem>()->pressItem();
   return 0;
 }
 
 STAK_EXPORT int shutter_button_released() {
   auto ms = mode.systems.system<MenuSystem>();
-  ms->releaseItem();
-  ms->activateItem();
+  ms->releaseAndActivateItem();
   wakeDisplay();
   return 0;
 }

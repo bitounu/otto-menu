@@ -139,6 +139,9 @@ void MenuSystem::turn(float amount) {
   mActiveMenu.component<Rotation>()->angle += amount / menu->items.size();
   menu->lastCrankTime = std::chrono::steady_clock::now();
 
+  if (menu->pressedItem) {
+    releaseItem();
+  }
   if (menu->activeItem) {
     auto itemHandleDeselect = menu->activeItem.component<DeselectHandler>();
     if (itemHandleDeselect) {
@@ -197,18 +200,21 @@ void MenuSystem::indicatePreviousMenu() {
 }
 
 void MenuSystem::pressItem() {
-  auto activeItem = mActiveMenu.component<Menu>()->activeItem;
+  auto menu = mActiveMenu.component<Menu>();
+  auto activeItem = menu->activeItem;
   if (activeItem) {
+    menu->pressedItem = activeItem;
     auto handler = activeItem.component<PressHandler>();
     if (handler) handler->press(*this, activeItem);
   }
 }
 
 void MenuSystem::releaseItem() {
-  auto activeItem = mActiveMenu.component<Menu>()->activeItem;
-  if (activeItem) {
-    auto handler = activeItem.component<ReleaseHandler>();
-    if (handler) handler->release(*this, activeItem);
+  auto menu = mActiveMenu.component<Menu>();
+  if (menu->pressedItem) {
+    auto handler = menu->pressedItem.component<ReleaseHandler>();
+    if (handler) handler->release(*this, menu->pressedItem);
+    menu->pressedItem.invalidate();
   }
 }
 
@@ -217,6 +223,13 @@ void MenuSystem::activateItem() {
   if (activeItem) {
     auto handler = activeItem.component<ActivateHandler>();
     if (handler) handler->activate(*this, activeItem);
+  }
+}
+
+void MenuSystem::releaseAndActivateItem() {
+  if (mActiveMenu.component<Menu>()->pressedItem) {
+    releaseItem();
+    activateItem();
   }
 }
 

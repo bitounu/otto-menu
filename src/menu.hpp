@@ -64,7 +64,7 @@ struct Menu {
   static void defaultHandleDraw(Entity entity);
 
   std::vector<Entity> items;
-  Entity activeItem;
+  Entity activeItem, pressedItem;
 
   float indexedRotation;
   size_t currentIndex;
@@ -116,6 +116,7 @@ public:
   void pressItem();
   void releaseItem();
   void activateItem();
+  void releaseAndActivateItem();
 
   void displayLabel(const std::string &text, float duration = 0.5f);
   void displayLabelInfinite(const std::string &text);
