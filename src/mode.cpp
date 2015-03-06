@@ -25,7 +25,7 @@ static const float displaySleepDelay = 30.0f;
 static struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
 
-  Svg *iconBack, *iconBatteryMask, *iconMemoryMask, *iconNo, *iconWifi, *iconYes;
+  Svg *iconBatteryMask, *iconMemoryMask;
 
   double time = 0.0;
 
@@ -74,12 +74,8 @@ STAK_EXPORT int init() {
   loadFont(assets + "232MKSD-round-medium.ttf");
 
   // Load images
-  mode.iconBack        = loadSvg(assets + "icon-back.svg", "px", 96);
   mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
   mode.iconMemoryMask  = loadSvg(assets + "icon-memory-mask.svg", "px", 96);
-  mode.iconNo          = loadSvg(assets + "icon-no.svg", "px", 96);
-  mode.iconWifi        = loadSvg(assets + "icon-wifi.svg", "px", 96);
-  mode.iconYes         = loadSvg(assets + "icon-yes.svg", "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
