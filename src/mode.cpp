@@ -34,6 +34,7 @@ static struct MenuMode : public entityx::EntityX {
 
   ch::TimelineItemControlRef displaySleepTimeout;
   ch::Output<float> displayBrightness = 1.0f;
+  bool displayIsSleeping = false;
 } mode;
 
 struct Toggle {
@@ -42,31 +43,26 @@ struct Toggle {
   Toggle(bool enabled = false) : enabled{ enabled } {}
 };
 
-static bool displayIsSleeping() {
-  return mode.displayBrightness() == 0.0f;
-}
 
 static void sleepDisplay() {
   timeline.apply(&mode.displayBrightness)
       .then<RampTo>(0.33f, 2.0f, EaseInOutQuad())
-      .then<Hold>(0.33f, displaySleepDelay - displayDaydreamDelay)
-      .then<RampTo>(0.0f, 2.0f, EaseInQuad());
+      .then<Hold>(0.5f, displaySleepDelay - displayDaydreamDelay)
+      .then<RampTo>(0.0f, 2.0f, EaseInQuad())
+      .finishFn([](ch::Motion<float> &m) { mode.displayIsSleeping = true; });
 }
 
 static bool wakeDisplay() {
   if (mode.displaySleepTimeout) mode.displaySleepTimeout->cancel();
   timeline.apply(&mode.displayBrightness).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
-  mode.displaySleepTimeout = timeline.cue([] { sleepDisplay(); }, displayDaydreamDelay).getControl();
-  return displayIsSleeping();
+  mode.displaySleepTimeout =
+      timeline.cue([] { sleepDisplay(); }, displayDaydreamDelay).getControl();
+
+  auto displayWasSleeping = mode.displayIsSleeping;
+  mode.displayIsSleeping = false;
+  return displayWasSleeping;
 }
 
-
-static void fillTextFitToWidth(const std::string &text, float width, float height) {
-  fontSize(1.0f);
-  auto size = getTextBounds(text).size;
-  fontSize(std::min(width / size.x, height / size.y));
-  fillText(text);
-}
 
 STAK_EXPORT int init() {
   auto assets = std::string(stak_assets_path());
@@ -75,7 +71,7 @@ STAK_EXPORT int init() {
 
   // Load images
   mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
-  mode.iconMemoryMask  = loadSvg(assets + "icon-memory-mask.svg", "px", 96);
+  mode.iconMemoryMask = loadSvg(assets + "icon-memory-mask.svg", "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
@@ -84,7 +80,14 @@ STAK_EXPORT int init() {
 
   mode.systems.configure();
 
-  auto makeTextDraw = [](const std::string &text, float width = 50.0f, float height = 40.0f) {
+  auto fillTextFitToWidth = [](const std::string &text, float width, float height) {
+    fontSize(1.0f);
+    auto size = getTextBounds(text).size;
+    fontSize(std::min(width / size.x, height / size.y));
+    fillText(text);
+  };
+
+  auto makeTextDraw = [=](const std::string &text, float width = 50.0f, float height = 40.0f) {
     return [=](Entity e) {
       MenuItem::defaultHandleDraw(e);
       textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
@@ -112,9 +115,7 @@ STAK_EXPORT int init() {
   {
     auto gif = makeMenuItem(mode.entities, mode.rootMenu);
     gif.replace<DrawHandler>(makeTextDraw("gif"));
-    gif.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
-      stak_activate_mode();
-    });
+    gif.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { stak_activate_mode(); });
   }
 
   //
@@ -229,6 +230,8 @@ STAK_EXPORT int shutdown() {
 }
 
 STAK_EXPORT int update(float dt) {
+  if (mode.displayIsSleeping) return 0;
+
   mode.time += dt;
 
   timeline.step(dt);
@@ -248,7 +251,7 @@ STAK_EXPORT int update(float dt) {
 STAK_EXPORT int draw() {
   static const mat3 defaultMatrix = { 0.0, -1.0, 0.0, 1.0, -0.0, 0.0, 0.0, screenHeight, 1.0 };
 
-  if (displayIsSleeping()) return 0;
+  if (mode.displayIsSleeping) return 0;
 
   clearColor(vec3(0.0f));
   clear(screenBounds);
