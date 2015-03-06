@@ -12,9 +12,6 @@
 // Debug
 #include <iostream>
 
-// TODO(ryan): Move this to stak.h
-#define STAK_EXPORT extern "C"
-
 using namespace glm;
 using namespace choreograph;
 using namespace otto;
