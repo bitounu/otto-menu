@@ -7,17 +7,19 @@
 #include "gtx/string_cast.hpp"
 #include "entityx/entityx.h"
 
+#include <algorithm>
+
 // Debug
 #include <iostream>
 
+// TODO(ryan): Move this to stak.h
 #define STAK_EXPORT extern "C"
 
 using namespace glm;
 using namespace choreograph;
 using namespace otto;
 
-static const int screenWidth = 96;
-static const int screenHeight = 96;
+static const int screenWidth = 96, screenHeight = 96;
 static const vec2 screenSize = { screenWidth, screenHeight };
 
 struct MenuMode : public entityx::EntityX {
@@ -105,6 +107,75 @@ struct Bubbles {
   }
 };
 
+struct Blip {
+  Output<vec3> color;
+  Output<float> scale = 0.0f;
+
+  void draw() {
+    beginPath();
+    circle(0, 0, scale());
+    fillColor(color());
+    fill();
+  }
+};
+
+struct Blips {
+  std::vector<std::unique_ptr<Blip>> blips;
+  Blip centerBlip;
+
+  std::vector<vec3> colors = { colorBGR(0x00ADEF), colorBGR(0xEC008B), colorBGR(0xFFF100) };
+
+  size_t nextColorIndex = 0;
+  float blipRadius = 40.0f;
+  bool animating = false;
+
+  Blips() {
+    for (size_t i = 0; i < 2; ++i) {
+      blips.push_back(std::make_unique<Blip>());
+    }
+    centerBlip.color = vec3(0.35f);
+    centerBlip.scale = 7.0f;
+  }
+
+  void startBlipAnim(Blip &blip, float delay) {
+    const auto color = colors[nextColorIndex];
+
+    timeline.apply(&blip.scale)
+        .then<Hold>(7.0f, delay)
+        .then<RampTo>(blipRadius, 2.0f, EaseOutQuad())
+        .then<Hold>(0.0f, 0.0f);
+    timeline.apply(&blip.color)
+        .then<Hold>(color, delay + 1.0f)
+        .then<RampTo>(vec3(), 1.0f, EaseOutQuad())
+        .finishFn([this, &blip](ch::Motion<vec3> &m) {
+          std::rotate(blips.begin(), blips.begin() + 1, blips.end());
+          if (animating) startBlipAnim(blip, 0.0f);
+        });
+
+    timeline.apply(&centerBlip.color)
+        .then<Hold>(glm::mix(color, vec3(1), 0.75f), 0.0f)
+        .then<RampTo>(vec3(0.35f), 0.5f, EaseInQuad());
+
+    nextColorIndex = (nextColorIndex + 1) % colors.size();
+  }
+
+  void startAnim() {
+    animating = true;
+    for (size_t i = 0; i < blips.size(); ++i) {
+      startBlipAnim(*blips[i], float(i) / blips.size() * 2.0f);
+    }
+  }
+
+  void stopAnim() { animating = false; }
+
+  void draw() {
+    for (const auto &blip : blips) {
+      blip->draw();
+    }
+  }
+  void drawCenter() { centerBlip.draw(); }
+};
+
 static void fillTextFitToWidth(const std::string &text, float width, float height) {
   fontSize(1.0f);
   auto size = getTextBounds(text).size;
@@ -169,43 +240,43 @@ STAK_EXPORT int init() {
   // Wifi
   //
   {
-    auto itemEntity = makeMenuItem(mode.entities, mode.rootMenu);
-    itemEntity.assign<Label>("wifi");
-    itemEntity.replace<DrawHandler>(makeIconDraw(mode.iconWifi));
+    auto wifi = makeMenuItem(mode.entities, mode.rootMenu);
+    wifi.assign<Label>("wifi");
+    wifi.assign<Toggle>();
+    wifi.assign<Blips>();
+    wifi.replace<DrawHandler>([](Entity e) {
+      {
+        ScopedTransform xf;
+        translate(0, 20);
 
-    auto item = itemEntity.component<MenuItem>();
-    item->subMenu = makeMenu(mode.entities);
+        e.component<Blips>()->draw();
 
-    auto tog = makeMenuItem(mode.entities, item->subMenu);
-    tog.replace<DrawHandler>([](Entity e) {
-      MenuItem::defaultHandleDraw(e);
-      translate(vec2(-48.0f));
-      draw(e.component<Toggle>()->enabled ? mode.iconYes : mode.iconNo);
-    });
-    tog.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
-      timeline.apply(&e.component<Scale>()->scale)
-          .then<RampTo>(vec2(0.0f), 0.1f, EaseInQuad())
-          .then<RampTo>(vec2(1.0f), 0.1f, EaseOutQuad())
-          .then<Hold>(vec2(1.0f), 0.15f)
-          .finishFn([e, &ms](ch::Motion<vec2> &m) mutable {
-            ms.displayLabel(e.component<Label>()->getLabel(e));
-          });
-      timeline.cue([e, &ms]() mutable {
-        auto toggle = e.component<Toggle>();
-        toggle->enabled = !toggle->enabled;
-      }, 0.1f);
-      ms.hideLabel();
-    });
-    tog.assign<Toggle>(false);
-    tog.assign<Label>([](Entity e) {
-      return e.component<Toggle>()->enabled ? "wifi on" : "wifi off";
-    });
+        beginPath();
+        moveTo(0, 0);
+        lineTo(0, -25);
+        strokeWidth(4);
+        strokeCap(VG_CAP_ROUND);
+        strokeColor(vec3(0.35f));
+        stroke();
 
-    auto back = makeMenuItem(mode.entities, item->subMenu);
-    back.assign<Label>("back");
-    back.replace<DrawHandler>(makeIconDraw(mode.iconBack));
-    back.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
-      ms.activatePreviousMenu();
+        e.component<Blips>()->drawCenter();
+      }
+
+      translate(0, -30);
+      fontSize(13);
+      textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+      fillColor(vec3(1));
+      fillText(e.component<Toggle>()->enabled ? "ON" : "OFF");
+    });
+    wifi.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
+      auto toggle = e.component<Toggle>();
+      if (toggle->enabled = !toggle->enabled) {
+        e.component<Blips>()->startAnim();
+        ms.displayLabel("wifi on");
+      } else {
+        e.component<Blips>()->stopAnim();
+        ms.displayLabel("wifi off");
+      }
     });
   }
 
@@ -251,7 +322,6 @@ STAK_EXPORT int init() {
     item.assign<Bubbles>(Rect(15, 18, 65, 56), 8.0f);
     item.replace<DrawHandler>([](Entity e) {
       ScopedMask mask(screenSize);
-      ScopedTransform xf;
       translate(screenSize * -0.5f);
 
       beginMask();
