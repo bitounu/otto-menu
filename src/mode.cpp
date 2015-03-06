@@ -23,6 +23,8 @@ static const int screenWidth = 96, screenHeight = 96;
 static const vec2 screenSize = { screenWidth, screenHeight };
 static const Rect screenBounds = { vec2(), screenSize };
 
+static const float displaySleepDelay = 10.0f;
+
 struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
 
@@ -32,6 +34,9 @@ struct MenuMode : public entityx::EntityX {
 
   float secondsPerFrame;
   uint32_t frameCount = 0;
+
+  ch::TimelineItemControlRef displaySleepTimeout;
+  ch::Output<float> displayBrightness = 1.0f;
 };
 
 static MenuMode mode;
@@ -176,6 +181,17 @@ struct Blips {
   }
   void drawCenter() { centerBlip.draw(); }
 };
+
+
+static void sleepDisplay() {
+  timeline.apply(&mode.displayBrightness).then<RampTo>(0.0f, 2.0f, EaseInQuad());
+}
+
+static void wakeDisplay() {
+  if (mode.displaySleepTimeout) mode.displaySleepTimeout->cancel();
+  timeline.apply(&mode.displayBrightness).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
+  mode.displaySleepTimeout = timeline.cue([] { sleepDisplay(); }, displaySleepDelay).getControl();
+}
 
 static void fillTextFitToWidth(const std::string &text, float width, float height) {
   fontSize(1.0f);
@@ -339,6 +355,8 @@ STAK_EXPORT int init() {
     assignPressHoldLabel(item, "128MiB/4GiB");
   }
 
+  wakeDisplay();
+
   return 0;
 }
 
@@ -366,6 +384,8 @@ STAK_EXPORT int update(float dt) {
 STAK_EXPORT int draw() {
   static const mat3 defaultMatrix = { 0.0, -1.0, 0.0, 1.0, -0.0, 0.0, 0.0, screenHeight, 1.0 };
 
+  if (mode.displayBrightness() == 0.0f) return 0;
+
   clearColor(vec3(0.0f));
   clear(screenBounds);
 
@@ -381,6 +401,9 @@ STAK_EXPORT int draw() {
   endMask();
   enableMask();
 
+  enableColorTransform();
+  setColorTransform(vec4(vec3(mode.displayBrightness()), 1.0f), vec4(0.0f));
+
   ScopedMask mask(screenSize);
   mode.systems.system<MenuSystem>()->draw();
 
@@ -389,11 +412,13 @@ STAK_EXPORT int draw() {
 
 STAK_EXPORT int crank_rotated(int amount) {
   mode.systems.system<MenuSystem>()->turn(amount * -0.25f);
+  wakeDisplay();
   return 0;
 }
 
 STAK_EXPORT int shutter_button_pressed() {
   mode.systems.system<MenuSystem>()->pressItem();
+  wakeDisplay();
   return 0;
 }
 
@@ -401,23 +426,28 @@ STAK_EXPORT int shutter_button_released() {
   auto ms = mode.systems.system<MenuSystem>();
   ms->releaseItem();
   ms->activateItem();
+  wakeDisplay();
   return 0;
 }
 
 STAK_EXPORT int power_button_pressed() {
   mode.systems.system<MenuSystem>()->indicatePreviousMenu();
+  wakeDisplay();
   return 0;
 }
 
 STAK_EXPORT int power_button_released() {
   mode.systems.system<MenuSystem>()->activatePreviousMenu();
+  wakeDisplay();
   return 0;
 }
 
 STAK_EXPORT int crank_pressed() {
+  wakeDisplay();
   return 0;
 }
 
 STAK_EXPORT int crank_released() {
+  wakeDisplay();
   return 0;
 }
