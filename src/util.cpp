@@ -33,4 +33,11 @@ void AngularParticle::lerp(float targetAngle, float t) {
   angle = lerpAngular(angle, targetAngle, t);
 }
 
+std::pair<std::string, std::string> formatMebibytes(uint32_t bytes) {
+  static const std::string suffixes[] = { "B", "KiB", "MiB", "GiB" };
+  uint32_t place = std::log(static_cast<double>(bytes)) / std::log(1024.0);
+  uint32_t units = std::round(bytes / std::pow(1024.0, place));
+  return { std::to_string(units), suffixes[place] };
+}
+
 } // otto

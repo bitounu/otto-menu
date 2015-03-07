@@ -43,6 +43,11 @@ struct Toggle {
   Toggle(bool enabled = false) : enabled{ enabled } {}
 };
 
+struct Memory {
+  Output<float> generalScale = 1.0f;
+  Output<float> detailScale = 0.0f;
+};
+
 
 static void sleepDisplay() {
   timeline.apply(&mode.displayBrightness)
@@ -145,7 +150,7 @@ STAK_EXPORT int init() {
       }
 
       translate(0, -30);
-      fontSize(13);
+      fontSize(18);
       textAlign(ALIGN_CENTER | ALIGN_BASELINE);
       fillColor(vec3(1));
       fillText(e.component<Toggle>()->enabled ? "OTTO" : "OFF");
@@ -199,25 +204,90 @@ STAK_EXPORT int init() {
   // Memory
   //
   {
-    auto item = makeMenuItem(mode.entities, mode.rootMenu);
-    item.assign<Label>("memory");
-    item.assign<Bubbles>(Rect(15, 18, 65, 56), 8.0f);
-    item.replace<DrawHandler>([](Entity e) {
-      ScopedMask mask(screenSize);
-      translate(screenSize * -0.5f);
+    auto drawBytes = [](uint32_t bytes) {
+      ScopedTransform xf;
 
-      beginMask();
-      draw(mode.iconMemoryMask);
-      endMask();
+      auto mb = formatMebibytes(bytes);
 
-      beginPath();
-      rect(screenBounds);
-      fillColor(vec3(0.35f));
-      fill();
+      fontSize(20);
+      auto numberBounds = getTextBounds(mb.first);
+      fontSize(14);
+      auto suffixBounds = getTextBounds(mb.second);
 
-      e.component<Bubbles>()->draw();
+      textAlign(ALIGN_LEFT | ALIGN_BASELINE);
+      translate(-0.5f * (numberBounds.size.x + suffixBounds.size.x), 0);
+      fontSize(20);
+      fillText(mb.first);
+      translate(numberBounds.size.x, 0);
+      fontSize(14);
+      fillText(mb.second);
+    };
+
+    auto mem = makeMenuItem(mode.entities, mode.rootMenu);
+    mem.assign<Label>("memory");
+    mem.assign<Bubbles>(Rect(15, 18, 65, 56), 8.0f);
+    mem.assign<Memory>();
+    mem.replace<DrawHandler>([=](Entity e) {
+      auto mc = e.component<Memory>();
+
+      if (mc->generalScale > 0.0f) {
+        scale(mc->generalScale);
+
+        ScopedMask mask(screenSize);
+        translate(screenSize * -0.5f);
+
+        beginMask();
+        draw(mode.iconMemoryMask);
+        endMask();
+
+        beginPath();
+        rect(screenBounds);
+        fillColor(vec3(0.35f));
+        fill();
+
+        e.component<Bubbles>()->draw();
+      }
+
+      if (mc->detailScale > 0.0f) {
+        scale(mc->detailScale);
+
+        fillColor(vec3(1));
+        fontSize(20);
+        textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+
+        pushTransform();
+        translate(0, 8);
+        drawBytes(531006081);
+        popTransform();
+
+        beginPath();
+        moveTo(-20, 0);
+        lineTo(20, 0);
+        strokeCap(VG_CAP_SQUARE);
+        strokeWidth(2);
+        strokeColor(vec3(0.35f));
+        stroke();
+
+        pushTransform();
+        translate(0, -23);
+        drawBytes(1073741824);
+        popTransform();
+      }
     });
-    assignPressHoldLabel(item, "128MiB/4GiB");
+    mem.replace<PressHandler>([](MenuSystem &ms, Entity e) {
+      auto mc = e.component<Memory>();
+      timeline.apply(&mc->generalScale).then<RampTo>(0.0f, 0.15f, EaseInQuad());
+      timeline.apply(&mc->detailScale)
+          .then<Hold>(0.0f, 0.15f)
+          .then<RampTo>(1.0f, 0.15f, EaseOutQuad());
+    });
+    mem.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
+      auto mc = e.component<Memory>();
+      timeline.apply(&mc->detailScale).then<RampTo>(0.0f, 0.15f, EaseOutQuad());
+      timeline.apply(&mc->generalScale)
+          .then<Hold>(0.0f, mc->generalScale == 0.0f ? 0.15f : 0.0f)
+          .then<RampTo>(1.0f, 0.15f, EaseOutQuad());
+    });
   }
 
   wakeDisplay();

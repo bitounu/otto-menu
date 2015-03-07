@@ -119,7 +119,7 @@ void MenuSystem::draw() {
   // Draw label
   if (mLabelOpacity > 0.0f && mLabelText.size() > 0) {
     textAlign(ALIGN_MIDDLE | ALIGN_CENTER);
-    fontSize(13);
+    fontSize(16);
 
     auto b = getTextBounds(mLabelText);
     beginPath();
