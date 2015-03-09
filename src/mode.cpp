@@ -8,6 +8,8 @@
 #include "gtx/string_cast.hpp"
 #include "entityx/entityx.h"
 
+#include <chrono>
+
 // Debug
 #include <iostream>
 
@@ -47,16 +49,33 @@ struct DetailView {
   Output<float> generalScale = 1.0f;
   Output<float> detailScale = 0.0f;
 
+  std::chrono::steady_clock::time_point pressTime;
+  bool isPressed = false;
+
+  bool okToRelease() {
+    auto now = std::chrono::steady_clock::now();
+    return now - pressTime > std::chrono::seconds(1);
+  }
+
   void press() {
+    if (detailScale > 0.0f) return;
+
     timeline.apply(&generalScale).then<RampTo>(0.0f, 0.15f, EaseInQuad());
     timeline.apply(&detailScale).then<Hold>(0.0f, 0.15f).then<RampTo>(1.0f, 0.15f, EaseOutQuad());
+    timeline.cue([this] { if (!isPressed) release(); }, 1.1f).getControl();
+
+    isPressed = true;
+    pressTime = std::chrono::steady_clock::now();
   }
 
   void release() {
-    timeline.apply(&detailScale).then<RampTo>(0.0f, 0.15f, EaseOutQuad());
-    timeline.apply(&generalScale)
-        .then<Hold>(0.0f, generalScale == 0.0f ? 0.15f : 0.0f)
-        .then<RampTo>(1.0f, 0.15f, EaseOutQuad());
+    if (okToRelease()) {
+      timeline.apply(&detailScale).then<RampTo>(0.0f, 0.15f, EaseOutQuad());
+      timeline.apply(&generalScale)
+          .then<Hold>(0.0f, generalScale == 0.0f ? 0.15f : 0.0f)
+          .then<RampTo>(1.0f, 0.15f, EaseOutQuad());
+    }
+    isPressed = false;
   }
 };
 
@@ -70,7 +89,10 @@ static void sleepDisplay() {
 }
 
 static bool wakeDisplay() {
-  if (mode.displaySleepTimeout) mode.displaySleepTimeout->cancel();
+  if (mode.displaySleepTimeout) {
+    mode.displaySleepTimeout->cancel();
+    mode.displaySleepTimeout.reset();
+  }
 
   timeline.apply(&mode.displayBrightness).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
   mode.displaySleepTimeout =
