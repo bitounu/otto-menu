@@ -24,6 +24,8 @@ static const Rect screenBounds = { vec2(), screenSize };
 static const float displayDaydreamDelay = 15.0f;
 static const float displaySleepDelay = 30.0f;
 
+static const float detailDurationMin = 1.0f;
+
 static struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
 
@@ -54,17 +56,19 @@ struct DetailView {
 
   bool okToRelease() {
     auto now = std::chrono::steady_clock::now();
-    return now - pressTime > std::chrono::seconds(1);
+    return now - pressTime >
+           std::chrono::milliseconds(static_cast<int>(950.0f * detailDurationMin));
   }
 
   void press() {
+    isPressed = true;
+
     if (detailScale > 0.0f) return;
 
     timeline.apply(&generalScale).then<RampTo>(0.0f, 0.15f, EaseInQuad());
     timeline.apply(&detailScale).then<Hold>(0.0f, 0.15f).then<RampTo>(1.0f, 0.15f, EaseOutQuad());
-    timeline.cue([this] { if (!isPressed) release(); }, 1.1f).getControl();
+    timeline.cue([this] { if (!isPressed) release(); }, detailDurationMin);
 
-    isPressed = true;
     pressTime = std::chrono::steady_clock::now();
   }
 
