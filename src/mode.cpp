@@ -19,7 +19,7 @@ static const int screenWidth = 96, screenHeight = 96;
 static const vec2 screenSize = { screenWidth, screenHeight };
 static const Rect screenBounds = { vec2(), screenSize };
 
-static const float displayDaydreamDelay = 10.0f;
+static const float displayDaydreamDelay = 15.0f;
 static const float displaySleepDelay = 30.0f;
 
 static struct MenuMode : public entityx::EntityX {
@@ -43,9 +43,21 @@ struct Toggle {
   Toggle(bool enabled = false) : enabled{ enabled } {}
 };
 
-struct Memory {
+struct DetailView {
   Output<float> generalScale = 1.0f;
   Output<float> detailScale = 0.0f;
+
+  void press() {
+    timeline.apply(&generalScale).then<RampTo>(0.0f, 0.15f, EaseInQuad());
+    timeline.apply(&detailScale).then<Hold>(0.0f, 0.15f).then<RampTo>(1.0f, 0.15f, EaseOutQuad());
+  }
+
+  void release() {
+    timeline.apply(&detailScale).then<RampTo>(0.0f, 0.15f, EaseOutQuad());
+    timeline.apply(&generalScale)
+        .then<Hold>(0.0f, generalScale == 0.0f ? 0.15f : 0.0f)
+        .then<RampTo>(1.0f, 0.15f, EaseOutQuad());
+  }
 };
 
 
@@ -59,6 +71,7 @@ static void sleepDisplay() {
 
 static bool wakeDisplay() {
   if (mode.displaySleepTimeout) mode.displaySleepTimeout->cancel();
+
   timeline.apply(&mode.displayBrightness).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
   mode.displaySleepTimeout =
       timeline.cue([] { sleepDisplay(); }, displayDaydreamDelay).getControl();
@@ -68,6 +81,24 @@ static bool wakeDisplay() {
   return displayWasSleeping;
 }
 
+
+static void fillTextCenteredWithSuffix(const std::string &text, const std::string &suffix,
+                                       float textSize, float suffixSize) {
+  ScopedTransform xf;
+
+  fontSize(textSize);
+  auto textBounds = getTextBounds(text);
+  fontSize(suffixSize);
+  auto suffixBounds = getTextBounds(suffix);
+
+  textAlign(ALIGN_LEFT | ALIGN_BASELINE);
+  translate(-0.5f * (textBounds.size.x + suffixBounds.size.x), 0);
+  fontSize(textSize);
+  fillText(text);
+  translate(textBounds.size.x, 0);
+  fontSize(suffixSize);
+  fillText(suffix);
+}
 
 STAK_EXPORT int init() {
   auto assets = std::string(stak_assets_path());
@@ -101,17 +132,11 @@ STAK_EXPORT int init() {
     };
   };
 
-  auto makeIconDraw = [](Svg *svg) {
-    return [svg](Entity e) {
-      MenuItem::defaultHandleDraw(e);
-      translate(vec2(-48.0f));
-      draw(svg);
-    };
-  };
-
-  auto assignPressHoldLabel = [](Entity e, const std::string &text) {
-    e.replace<PressHandler>([=](MenuSystem &ms, Entity e) { ms.displayLabelInfinite(text); });
-    e.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) { ms.hideLabel(); });
+  auto assignDetailPressHandlers = [](Entity e) {
+    e.replace<PressHandler>(
+        [](MenuSystem &ms, Entity e) { e.component<DetailView>()->press(); });
+    e.replace<ReleaseHandler>(
+        [](MenuSystem &ms, Entity e) { e.component<DetailView>()->release(); });
   };
 
   //
@@ -171,33 +196,67 @@ STAK_EXPORT int init() {
   // Battery
   //
   {
-    auto item = makeMenuItem(mode.entities, mode.rootMenu);
-    item.assign<Label>("battery");
-    item.replace<DrawHandler>([](Entity e) {
-      ScopedMask mask(screenSize);
-      {
-        ScopedTransform xf;
-        translate(screenSize * -0.5f);
+    auto bat = makeMenuItem(mode.entities, mode.rootMenu);
+    bat.assign<Label>("battery");
+    bat.assign<DetailView>();
+    assignDetailPressHandlers(bat);
+    bat.replace<DrawHandler>([](Entity e) {
+      auto detail = e.component<DetailView>();
 
-        beginMask();
-        draw(mode.iconBatteryMask);
-        endMask();
+      if (detail->generalScale > 0.0f) {
+        scale(detail->generalScale);
+
+        ScopedMask mask(screenSize);
+        {
+          ScopedTransform xf;
+          translate(screenSize * -0.5f);
+
+          beginMask();
+          draw(mode.iconBatteryMask);
+          endMask();
+
+          beginPath();
+          rect(screenBounds);
+          fillColor(vec3(0.35f));
+          fill();
+        }
 
         beginPath();
-        rect(screenBounds);
-        fillColor(vec3(0.35f));
+        float t = mode.time * 2.0f;
+        moveTo(-48.0f, std::sin(t) / M_PI * 40.0f);
+        lineTo(48.0f, std::sin(t + 0.5f) / M_PI * 40.0f);
+        lineTo(48, -48);
+        lineTo(-48, -48);
+        fillColor(0, 1, 0);
         fill();
       }
-      beginPath();
-      float t = mode.time * 2.0f;
-      moveTo(-48.0f, std::sin(t) / M_PI * 40.0f);
-      lineTo(48.0f, std::sin(t + 0.5f) / M_PI * 40.0f);
-      lineTo(48, -48);
-      lineTo(-48, -48);
-      fillColor(0, 1, 0);
-      fill();
+
+      if (detail->detailScale > 0.0f) {
+        scale(detail->detailScale);
+
+        fillColor(vec3(1));
+
+        pushTransform();
+        translate(0, 8);
+        textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+        fontSize(20);
+        fillText("55%");
+        popTransform();
+
+        beginPath();
+        moveTo(-20, 0);
+        lineTo(20, 0);
+        strokeCap(VG_CAP_SQUARE);
+        strokeWidth(2);
+        strokeColor(vec3(0.35f));
+        stroke();
+
+        pushTransform();
+        translate(0, -23);
+        fillTextCenteredWithSuffix("1.2", "hrs", 21, 14);
+        popTransform();
+      }
     });
-    assignPressHoldLabel(item, "99%");
   }
 
   //
@@ -205,33 +264,20 @@ STAK_EXPORT int init() {
   //
   {
     auto drawBytes = [](uint32_t bytes) {
-      ScopedTransform xf;
-
       auto mb = formatMebibytes(bytes);
-
-      fontSize(20);
-      auto numberBounds = getTextBounds(mb.first);
-      fontSize(14);
-      auto suffixBounds = getTextBounds(mb.second);
-
-      textAlign(ALIGN_LEFT | ALIGN_BASELINE);
-      translate(-0.5f * (numberBounds.size.x + suffixBounds.size.x), 0);
-      fontSize(20);
-      fillText(mb.first);
-      translate(numberBounds.size.x, 0);
-      fontSize(14);
-      fillText(mb.second);
+      fillTextCenteredWithSuffix(mb.first, mb.second, 21, 14);
     };
 
     auto mem = makeMenuItem(mode.entities, mode.rootMenu);
     mem.assign<Label>("memory");
     mem.assign<Bubbles>(Rect(15, 18, 65, 56), 8.0f);
-    mem.assign<Memory>();
+    mem.assign<DetailView>();
+    assignDetailPressHandlers(mem);
     mem.replace<DrawHandler>([=](Entity e) {
-      auto mc = e.component<Memory>();
+      auto detail = e.component<DetailView>();
 
-      if (mc->generalScale > 0.0f) {
-        scale(mc->generalScale);
+      if (detail->generalScale > 0.0f) {
+        scale(detail->generalScale);
 
         ScopedMask mask(screenSize);
         translate(screenSize * -0.5f);
@@ -248,12 +294,10 @@ STAK_EXPORT int init() {
         e.component<Bubbles>()->draw();
       }
 
-      if (mc->detailScale > 0.0f) {
-        scale(mc->detailScale);
+      if (detail->detailScale > 0.0f) {
+        scale(detail->detailScale);
 
         fillColor(vec3(1));
-        fontSize(20);
-        textAlign(ALIGN_CENTER | ALIGN_BASELINE);
 
         pushTransform();
         translate(0, 8);
@@ -273,20 +317,6 @@ STAK_EXPORT int init() {
         drawBytes(1073741824);
         popTransform();
       }
-    });
-    mem.replace<PressHandler>([](MenuSystem &ms, Entity e) {
-      auto mc = e.component<Memory>();
-      timeline.apply(&mc->generalScale).then<RampTo>(0.0f, 0.15f, EaseInQuad());
-      timeline.apply(&mc->detailScale)
-          .then<Hold>(0.0f, 0.15f)
-          .then<RampTo>(1.0f, 0.15f, EaseOutQuad());
-    });
-    mem.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
-      auto mc = e.component<Memory>();
-      timeline.apply(&mc->detailScale).then<RampTo>(0.0f, 0.15f, EaseOutQuad());
-      timeline.apply(&mc->generalScale)
-          .then<Hold>(0.0f, mc->generalScale == 0.0f ? 0.15f : 0.0f)
-          .then<RampTo>(1.0f, 0.15f, EaseOutQuad());
     });
   }
 
