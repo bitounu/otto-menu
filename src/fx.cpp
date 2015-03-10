@@ -78,19 +78,20 @@ void Blips::startBlipAnim(Blip &blip, float delay) {
 
   timeline.apply(&blip.scale)
       .then<Hold>(7.0f, delay)
+      .onInflection([=](ch::Motion<float> &m) {
+        timeline.apply(&centerBlip.color)
+            .then<Hold>(glm::mix(color, vec3(1), 0.75f), 0.0f)
+            .then<RampTo>(vec3(0.35f), 0.5f, EaseInQuad());
+      })
       .then<RampTo>(blipRadius, 2.0f, EaseOutQuad())
-      .then<Hold>(0.0f, 0.0f);
-  timeline.apply(&blip.color)
-      .then<Hold>(color, delay + 1.0f)
-      .then<RampTo>(vec3(), 1.0f, EaseOutQuad())
-      .finishFn([this, &blip](ch::Motion<vec3> &m) {
+      .then<Hold>(0.0f, 0.0f)
+      .finishFn([this, &blip](ch::Motion<float> &m) {
         std::rotate(blips.begin(), blips.begin() + 1, blips.end());
         if (animating) startBlipAnim(blip, 0.0f);
       });
-
-  timeline.apply(&centerBlip.color)
-      .then<Hold>(glm::mix(color, vec3(1), 0.75f), 0.0f)
-      .then<RampTo>(vec3(0.35f), 0.5f, EaseInQuad());
+  timeline.apply(&blip.color)
+      .then<Hold>(color, delay + 1.0f)
+      .then<RampTo>(vec3(), 1.0f, EaseOutQuad());
 
   nextColorIndex = (nextColorIndex + 1) % colors.size();
 }
