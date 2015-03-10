@@ -29,7 +29,7 @@ static const float detailDurationMin = 1.0f;
 static struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
 
-  Svg *iconBatteryMask, *iconMemoryMask;
+  Svg *iconBatteryMask, *iconMemoryMask, *iconCharging;
 
   double time = 0.0;
 
@@ -134,6 +134,7 @@ STAK_EXPORT int init() {
   // Load images
   mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
   mode.iconMemoryMask = loadSvg(assets + "icon-memory-mask.svg", "px", 96);
+  mode.iconCharging = loadSvg(assets + "icon-charging.svg", "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
@@ -255,6 +256,9 @@ STAK_EXPORT int init() {
         lineTo(-48, -48);
         fillColor(0, 1, 0);
         fill();
+
+        translate(screenSize * -0.5f);
+        draw(mode.iconCharging);
       }
 
       if (detail->detailScale > 0.0f) {
