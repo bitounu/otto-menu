@@ -14,12 +14,14 @@ static std::uniform_real_distribution<float> floatGen;
 int32_t randInt() {
   return rand::base();
 }
+
 int32_t randInt(int32_t v) {
   if (v <= 0)
     return 0;
   else
     return rand::base() % v;
 }
+
 int32_t randInt(int32_t a, int32_t b) {
   return randInt(b - a) + a;
 }
@@ -27,9 +29,11 @@ int32_t randInt(int32_t a, int32_t b) {
 float randFloat() {
   return rand::floatGen(rand::base);
 }
+
 float randFloat(float v) {
   return rand::floatGen(rand::base) * v;
 }
+
 float randFloat(float a, float b) {
   return rand::floatGen(rand::base) * (b - a) + a;
 }
