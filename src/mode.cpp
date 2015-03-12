@@ -1,5 +1,5 @@
 #include "stak.h"
-#include "gfx.hpp"
+#include "display.hpp"
 #include "util.hpp"
 #include "menu.hpp"
 #include "rand.hpp"
@@ -21,9 +21,6 @@ static const int screenWidth = 96, screenHeight = 96;
 static const vec2 screenSize = { screenWidth, screenHeight };
 static const Rect screenBounds = { vec2(), screenSize };
 
-static const float displayDaydreamDelay = 15.0f;
-static const float displaySleepDelay = 30.0f;
-
 static const float detailDurationMin = 1.0f;
 
 static struct MenuMode : public entityx::EntityX {
@@ -35,11 +32,9 @@ static struct MenuMode : public entityx::EntityX {
 
   float secondsPerFrame;
   uint32_t frameCount = 0;
-
-  ch::TimelineItemControlRef displaySleepTimeout;
-  ch::Output<float> displayBrightness = 1.0f;
-  bool displayIsSleeping = false;
 } mode;
+
+static Display display = { screenSize };
 
 struct Toggle {
   bool enabled;
@@ -82,31 +77,6 @@ struct DetailView {
     isPressed = false;
   }
 };
-
-
-static void sleepDisplay() {
-  timeline.apply(&mode.displayBrightness)
-      .then<RampTo>(0.5f, 2.0f, EaseInOutQuad())
-      .then<Hold>(0.5f, displaySleepDelay - displayDaydreamDelay)
-      .then<RampTo>(0.0f, 2.0f, EaseInQuad())
-      .finishFn([](ch::Motion<float> &m) { mode.displayIsSleeping = true; });
-}
-
-static bool wakeDisplay() {
-  if (mode.displaySleepTimeout) {
-    mode.displaySleepTimeout->cancel();
-    mode.displaySleepTimeout.reset();
-  }
-
-  timeline.apply(&mode.displayBrightness).then<RampTo>(1.0f, 0.25f, EaseOutQuad());
-  mode.displaySleepTimeout =
-      timeline.cue([] { sleepDisplay(); }, displayDaydreamDelay).getControl();
-
-  auto displayWasSleeping = mode.displayIsSleeping;
-  mode.displayIsSleeping = false;
-  return displayWasSleeping;
-}
-
 
 static void fillTextCenteredWithSuffix(const std::string &text, const std::string &suffix,
                                        float textSize, float suffixSize) {
@@ -350,7 +320,7 @@ STAK_EXPORT int init() {
     });
   }
 
-  wakeDisplay();
+  display.wake();
 
   return 0;
 }
@@ -360,89 +330,66 @@ STAK_EXPORT int shutdown() {
 }
 
 STAK_EXPORT int update(float dt) {
-  if (mode.displayIsSleeping) return 0;
+  display.update([dt] {
+    mode.time += dt;
 
-  mode.time += dt;
+    timeline.step(dt);
+    mode.systems.update<MenuSystem>(dt);
 
-  timeline.step(dt);
-  mode.systems.update<MenuSystem>(dt);
+    mode.frameCount++;
 
-  mode.frameCount++;
-
-  mode.secondsPerFrame += dt;
-  if (mode.frameCount % 60 == 0) {
-    std::cout << (1.0f / (mode.secondsPerFrame / 60.0f)) << " fps" << std::endl;
-    mode.secondsPerFrame = 0.0f;
-  }
-
+    mode.secondsPerFrame += dt;
+    if (mode.frameCount % 60 == 0) {
+      std::cout << (1.0f / (mode.secondsPerFrame / 60.0f)) << " fps" << std::endl;
+      mode.secondsPerFrame = 0.0f;
+    }
+  });
   return 0;
 }
 
 STAK_EXPORT int draw() {
-  static const mat3 defaultMatrix = { 0.0, -1.0, 0.0, 1.0, -0.0, 0.0, 0.0, screenHeight, 1.0 };
-
-  if (mode.displayIsSleeping) return 0;
-
-  clearColor(vec3(0.0f));
-  clear(screenBounds);
-
-  setTransform(defaultMatrix);
-
-  // NOTE(ryan): Apply a circular mask to simulate a round display. We may want to move this to
-  // stak-sdk so that the mask is enforced.
-  fillMask(screenBounds);
-  beginPath();
-  circle(48.0f, 48.0f, 48.0f);
-  beginMask();
-  fill();
-  endMask();
-  enableMask();
-
-  enableColorTransform();
-  setColorTransform(vec4(vec3(mode.displayBrightness()), 1.0f), vec4(0.0f));
-
-  ScopedMask mask(screenSize);
-  mode.systems.system<MenuSystem>()->draw();
-
+  display.draw([] {
+    mode.systems.system<MenuSystem>()->draw();
+  });
   return 0;
 }
 
 STAK_EXPORT int crank_rotated(int amount) {
   mode.systems.system<MenuSystem>()->turn(amount * -0.25f);
-  wakeDisplay();
+  display.wake();
   return 0;
 }
 
 STAK_EXPORT int shutter_button_pressed() {
-  if (!wakeDisplay()) mode.systems.system<MenuSystem>()->pressItem();
+  if (!display.wake()) mode.systems.system<MenuSystem>()->pressItem();
   return 0;
 }
 
 STAK_EXPORT int shutter_button_released() {
   auto ms = mode.systems.system<MenuSystem>();
   ms->releaseAndActivateItem();
-  wakeDisplay();
+  display.wake();
   return 0;
 }
 
 STAK_EXPORT int power_button_pressed() {
   mode.systems.system<MenuSystem>()->indicatePreviousMenu();
-  wakeDisplay();
+  display.wake();
   return 0;
 }
 
 STAK_EXPORT int power_button_released() {
   mode.systems.system<MenuSystem>()->activatePreviousMenu();
-  wakeDisplay();
+  display.wake();
   return 0;
 }
 
 STAK_EXPORT int crank_pressed() {
-  wakeDisplay();
+  display.wake();
   return 0;
 }
 
 STAK_EXPORT int crank_released() {
-  wakeDisplay();
+  display.wake();
   return 0;
 }
