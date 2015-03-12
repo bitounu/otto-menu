@@ -13,3 +13,6 @@
 [submodule "deps/otto-utils"]
 	path = deps/otto-utils
 	url = git@github.com:NextThingCo/otto-utils.git
+[submodule "deps/libStakHardware"]
+	path = deps/libStakHardware
+	url = git@github.com:NextThingCo/libStakHardware.git

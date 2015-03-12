@@ -18,6 +18,6 @@ struct AngularParticle {
   void lerp(float targetAngle, float t);
 };
 
-std::pair<std::string, std::string> formatMebibytes(uint32_t bytes);
+std::pair<std::string, std::string> formatMebibytes(uint64_t bytes);
 
 } // otto

@@ -1,4 +1,6 @@
 #include "stak.h"
+#include "stak/devices/disk.hpp"
+
 #include "display.hpp"
 #include "util.hpp"
 #include "menu.hpp"
@@ -263,7 +265,7 @@ STAK_EXPORT int init() {
   // Memory
   //
   {
-    auto drawBytes = [](uint32_t bytes) {
+    auto drawBytes = [](uint64_t bytes) {
       auto mb = formatMebibytes(bytes);
       fillTextCenteredWithSuffix(mb.first, mb.second, 21, 14);
     };
@@ -301,7 +303,7 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, 8);
-        drawBytes(531006081);
+        drawBytes(stakDiskUsage());
         popTransform();
 
         beginPath();
@@ -314,7 +316,7 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, -23);
-        drawBytes(1073741824);
+        drawBytes(stakDiskSize());
         popTransform();
       }
     });
