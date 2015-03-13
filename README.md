@@ -1,12 +1,12 @@
-## How to build
+# How to build
 
-This project requires a C++ compiler and standard library that support C++14. We are currently testing it with `clang 3.5.1` and `libc++ 3.5.1` on Arch linux.
+This project should be cross-compiled with Vagrant. See [otto-creator](https://github.com/NextThingCo/otto-creator) for details.
 
 From the root directory make a `build/` directory and run `cmake` from inside it.
 
 ```
 mkdir build && cd build
-cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..
+CC=arm-stak-linux-gnueabihf-gcc CXX=arm-stak-linux-gnueabihf-g++ cmake ..
 ```
 
 Then from the build directory you can run `make`.
@@ -14,21 +14,13 @@ Then from the build directory you can run `make`.
 ```
 make
 ```
-### Build otto-sdk
 
-Until otto-sdk moves to cmake it needs to be built on it's own.
-
-```
-cd deps/otto-sdk
-export CC=clang
-export CXX=clang++
-make
-```
-
-## Running
+# Running
 
 Run the otto-sdk `main` with the menu and mode libs:
 
 ```
-sudo deps/otto-sdk/build/main `pwd`/build/libotto_menu.so <mode-library.so>
+sudo /stak/sdk/otto-sdk/build/main /stak/sdk/otto-menu/build/libotto_menu.so <mode-library.so>
 ```
+
+Note that `otto-menu` and `otto-sdk` must be located at `/stak/sdk` on your Pi.
