@@ -293,14 +293,17 @@ STAK_EXPORT int init() {
     mem.assign<DetailView>();
     mem.assign<DiskSpace>();
     mem.replace<PressHandler>([](MenuSystem &ms, Entity e) {
-      auto ds = e.component<DiskSpace>();
-      ds->used = stakDiskUsage();
-      ds->total = stakDiskSize();
-
       e.component<DetailView>()->press();
     });
     mem.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
       e.component<DetailView>()->release();
+    });
+    mem.replace<SelectHandler>([](MenuSystem &ms, Entity e) {
+      MenuItem::defaultHandleSelect(ms, e);
+      auto ds = e.component<DiskSpace>();
+      ds->used = stakDiskUsage();
+      ds->total = stakDiskSize();
+      e.component<Bubbles>()->setPercent(double(ds->used) / double(ds->total));
     });
     mem.replace<DrawHandler>([=](Entity e) {
       auto detail = e.component<DetailView>();

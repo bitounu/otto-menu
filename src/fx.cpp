@@ -16,7 +16,7 @@ Bubbles::Bubbles(const Rect &bounds, float bubbleRadius)
   bubbles.resize(maxBubbles);
 
   circle(circlePath, 0, 0, bubbleRadius);
-  setCount(bubbles.size());
+  setCount(0);
 }
 Bubbles::~Bubbles() {
   vgDestroyPath(circlePath);
@@ -45,6 +45,10 @@ void Bubbles::setCount(size_t count) {
     else
       stopBubbleAnim(i);
   }
+}
+
+void Bubbles::setPercent(float percent) {
+  setCount(percent * bubbles.size());
 }
 
 void Bubbles::draw() {

@@ -31,6 +31,7 @@ struct Bubbles {
   void stopBubbleAnim(size_t i);
 
   void setCount(size_t count);
+  void setPercent(float percent);
 
   void draw();
 };
