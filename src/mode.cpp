@@ -1,6 +1,7 @@
 #include "stak.h"
 #include "stak/devices/disk.hpp"
 #include "stak/devices/power.hpp"
+#include "stak/devices/wifi.hpp"
 
 #include "display.hpp"
 #include "util.hpp"
@@ -38,12 +39,6 @@ static struct MenuMode : public entityx::EntityX {
 } mode;
 
 static Display display = { screenSize };
-
-struct Toggle {
-  bool enabled;
-
-  Toggle(bool enabled = false) : enabled{ enabled } {}
-};
 
 struct DiskSpace {
   uint64_t used, total;
@@ -113,6 +108,8 @@ STAK_EXPORT int init() {
 
   loadFont(assets + "232MKSD-round-medium.ttf");
 
+  stakWifiSetSsid("OTTO");
+
   // Load images
   mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
   mode.iconMemoryMask = loadSvg(assets + "icon-memory-mask.svg", "px", 96);
@@ -156,7 +153,6 @@ STAK_EXPORT int init() {
   {
     auto wifi = makeMenuItem(mode.entities, mode.rootMenu);
     wifi.assign<Label>("wifi");
-    wifi.assign<Toggle>();
     wifi.assign<Blips>();
     wifi.replace<DrawHandler>([](Entity e) {
       {
@@ -180,14 +176,15 @@ STAK_EXPORT int init() {
       fontSize(18);
       textAlign(ALIGN_CENTER | ALIGN_BASELINE);
       fillColor(vec3(1));
-      fillText(e.component<Toggle>()->enabled ? "OTTO" : "OFF");
+      fillText(stakWifiIsEnabled() ? stakWifiSsid() : "OFF");
     });
     wifi.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
-      auto toggle = e.component<Toggle>();
-      if (toggle->enabled = !toggle->enabled) {
+      if (!stakWifiIsEnabled()) {
+        stakWifiEnable();
         e.component<Blips>()->startAnim();
         ms.displayLabel("wifi on");
       } else {
+        stakWifiDisable();
         e.component<Blips>()->stopAnim();
         ms.displayLabel("wifi off");
       }
