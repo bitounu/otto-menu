@@ -20,7 +20,9 @@ make
 Run the otto-sdk `main` with the menu and mode libs:
 
 ```
-sudo /stak/sdk/otto-sdk/build/main /stak/sdk/otto-menu/build/libotto_menu.so <mode-library.so>
+sudo /stak/sdk/otto-sdk/build/main \
+	/stak/sdk/otto-menu/build/libotto_menu.so \
+	<mode-library.so>
 ```
 
 Note that `otto-menu` and `otto-sdk` must be located at `/stak/sdk` on your Pi.
