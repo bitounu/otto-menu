@@ -10,6 +10,7 @@ set(STAK_HW    "deps/libStakHardware")
 set(ENTITYX    "deps/entityx")
 
 add_subdirectory(${OTTO_GFX})
+add_subdirectory(${STAK_HW})
 
 set(ENTITYX_DT_TYPE float)
 set(ENTITYX_BUILD_SHARED OFF CACHE BOOL "No shared libs plz")
@@ -31,8 +32,7 @@ include_directories(SYSTEM "/opt/vc/include") # VideoCore
 
 file(GLOB deps_src
   "deps/Choreograph/src/choreograph/*.cpp"
-  "deps/otto-utils/src/*.cpp"
-  "deps/libStakHardware/src/**/*.cpp")
+  "deps/otto-utils/src/*.cpp")
 file(GLOB src "src/*.cpp")
 
 set(otto_menu_src ${deps_src} ${src})
@@ -41,7 +41,7 @@ set_source_files_properties(${otto_menu_src} PROPERTIES COMPILE_FLAGS
   "-include make_unique.hpp -include algorithm")
 
 add_library(otto_menu SHARED ${otto_menu_src})
-target_link_libraries(otto_menu otto_gfx entityx)
+target_link_libraries(otto_menu otto_gfx StakHardware entityx)
 
 # Copy assets to the build directory
 add_custom_command(
