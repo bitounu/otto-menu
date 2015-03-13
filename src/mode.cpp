@@ -1,5 +1,6 @@
 #include "stak.h"
 #include "stak/devices/disk.hpp"
+#include "stak/devices/power.hpp"
 
 #include "display.hpp"
 #include "util.hpp"
@@ -42,6 +43,15 @@ struct Toggle {
   bool enabled;
 
   Toggle(bool enabled = false) : enabled{ enabled } {}
+};
+
+struct DiskSpace {
+  uint64_t used, total;
+};
+
+struct Power {
+  float percentCharged;
+  bool isCharging;
 };
 
 struct DetailView {
@@ -131,13 +141,6 @@ STAK_EXPORT int init() {
     };
   };
 
-  auto assignDetailPressHandlers = [](Entity e) {
-    e.replace<PressHandler>(
-        [](MenuSystem &ms, Entity e) { e.component<DetailView>()->press(); });
-    e.replace<ReleaseHandler>(
-        [](MenuSystem &ms, Entity e) { e.component<DetailView>()->release(); });
-  };
-
   //
   // GIF Mode
   //
@@ -198,9 +201,21 @@ STAK_EXPORT int init() {
     auto bat = makeMenuItem(mode.entities, mode.rootMenu);
     bat.assign<Label>("battery");
     bat.assign<DetailView>();
-    assignDetailPressHandlers(bat);
+    bat.assign<Power>();
+    bat.replace<PressHandler>([](MenuSystem &ms, Entity e) {
+      auto power = e.component<Power>();
+      power->isCharging = stakPowerIsCharging();
+
+      e.component<DetailView>()->press();
+    });
+    bat.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
+      e.component<DetailView>()->release();
+    });
     bat.replace<DrawHandler>([](Entity e) {
       auto detail = e.component<DetailView>();
+
+      auto power = e.component<Power>();
+      power->percentCharged = stakPowerPercent();
 
       if (detail->generalScale > 0.0f) {
         scale(detail->generalScale);
@@ -222,15 +237,18 @@ STAK_EXPORT int init() {
 
         beginPath();
         float t = mode.time * 2.0f;
-        moveTo(-48.0f, std::sin(t) / M_PI * 40.0f);
-        lineTo(48.0f, std::sin(t + 0.5f) / M_PI * 40.0f);
+        float y = -48.0f + (power->percentCharged / 100.f) * 96.0f;
+        moveTo(-48.0f, y + std::sin(t) / M_PI * 10.0f);
+        lineTo(48.0f, y + std::cos(t) / M_PI * 10.0f);
         lineTo(48, -48);
         lineTo(-48, -48);
         fillColor(0, 1, 0);
         fill();
 
-        translate(screenSize * -0.5f);
-        draw(mode.iconCharging);
+        if (power->isCharging) {
+          translate(screenSize * -0.5f);
+          draw(mode.iconCharging);
+        }
       }
 
       if (detail->detailScale > 0.0f) {
@@ -242,7 +260,9 @@ STAK_EXPORT int init() {
         translate(0, 8);
         textAlign(ALIGN_CENTER | ALIGN_BASELINE);
         fontSize(20);
-        fillText("55%");
+        char percentText[5];
+        sprintf(percentText, "%.1f%%", power->percentCharged);
+        fillText(percentText);
         popTransform();
 
         beginPath();
@@ -274,7 +294,17 @@ STAK_EXPORT int init() {
     mem.assign<Label>("memory");
     mem.assign<Bubbles>(Rect(15, 18, 65, 56), 8.0f);
     mem.assign<DetailView>();
-    assignDetailPressHandlers(mem);
+    mem.assign<DiskSpace>();
+    mem.replace<PressHandler>([](MenuSystem &ms, Entity e) {
+      auto ds = e.component<DiskSpace>();
+      ds->used = stakDiskUsage();
+      ds->total = stakDiskSize();
+
+      e.component<DetailView>()->press();
+    });
+    mem.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
+      e.component<DetailView>()->release();
+    });
     mem.replace<DrawHandler>([=](Entity e) {
       auto detail = e.component<DetailView>();
 
@@ -297,13 +327,15 @@ STAK_EXPORT int init() {
       }
 
       if (detail->detailScale > 0.0f) {
+        auto ds = e.component<DiskSpace>();
+
         scale(detail->detailScale);
 
         fillColor(vec3(1));
 
         pushTransform();
         translate(0, 8);
-        drawBytes(stakDiskUsage());
+        drawBytes(ds->used);
         popTransform();
 
         beginPath();
@@ -316,7 +348,7 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, -23);
-        drawBytes(stakDiskSize());
+        drawBytes(ds->total);
         popTransform();
       }
     });
