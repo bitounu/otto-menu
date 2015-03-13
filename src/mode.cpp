@@ -21,10 +21,6 @@ using namespace glm;
 using namespace choreograph;
 using namespace otto;
 
-static const int screenWidth = 96, screenHeight = 96;
-static const vec2 screenSize = { screenWidth, screenHeight };
-static const Rect screenBounds = { vec2(), screenSize };
-
 static const float detailDurationMin = 1.0f;
 
 static struct MenuMode : public entityx::EntityX {
@@ -38,7 +34,7 @@ static struct MenuMode : public entityx::EntityX {
   uint32_t frameCount = 0;
 } mode;
 
-static Display display = { screenSize };
+static Display display = { { 96.0f, 96.0f } };
 
 struct DiskSpace {
   uint64_t used, total;
@@ -117,7 +113,7 @@ STAK_EXPORT int init() {
 
   mode.rootMenu = makeMenu(mode.entities);
 
-  auto menus = mode.systems.add<MenuSystem>(screenSize);
+  auto menus = mode.systems.add<MenuSystem>(display.bounds.size);
   menus->activateMenu(mode.rootMenu);
 
   mode.systems.configure();
@@ -217,17 +213,17 @@ STAK_EXPORT int init() {
       if (detail->generalScale > 0.0f) {
         scale(detail->generalScale);
 
-        ScopedMask mask(screenSize);
+        ScopedMask mask(display.bounds.size);
         {
           ScopedTransform xf;
-          translate(screenSize * -0.5f);
+          translate(display.bounds.size * -0.5f);
 
           beginMask();
           draw(mode.iconBatteryMask);
           endMask();
 
           beginPath();
-          rect(screenBounds);
+          rect(display.bounds);
           fillColor(vec3(0.35f));
           fill();
         }
@@ -243,7 +239,7 @@ STAK_EXPORT int init() {
         fill();
 
         if (power->isCharging) {
-          translate(screenSize * -0.5f);
+          translate(display.bounds.size * -0.5f);
           draw(mode.iconCharging);
         }
       }
@@ -311,15 +307,15 @@ STAK_EXPORT int init() {
       if (detail->generalScale > 0.0f) {
         scale(detail->generalScale);
 
-        ScopedMask mask(screenSize);
-        translate(screenSize * -0.5f);
+        ScopedMask mask(display.bounds.size);
+        translate(display.bounds.size * -0.5f);
 
         beginMask();
         draw(mode.iconMemoryMask);
         endMask();
 
         beginPath();
-        rect(screenBounds);
+        rect(display.bounds);
         fillColor(vec3(0.35f));
         fill();
 
