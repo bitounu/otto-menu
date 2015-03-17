@@ -40,4 +40,18 @@ std::pair<std::string, std::string> formatMebibytes(uint64_t bytes) {
   return { std::to_string(units), suffixes[std::min(place, 3ull)] };
 }
 
+static const double MS_TO_HRS  = 1.0 / (60.0 * 60.0 * 1000.0);
+static const double MS_TO_MINS = 1.0 / (60.0 * 1000.0);
+static const double MS_TO_SECS = 1.0 / 1000.0;
+
+std::pair<std::string, std::string> formatMillis(uint64_t ms) {
+  static const std::string suffixes[] = { "hrs", "mins", "secs" };
+  static const double conversions[] = { MS_TO_HRS, MS_TO_MINS, MS_TO_SECS };
+  for (int i = 0; i < 3; ++i) {
+    auto units = conversions[i];
+    if (units >= 1.0) return { formatNumber(units, 2), suffixes[i] };
+  }
+  return { std::to_string(ms), "ms" };
+}
+
 } // otto

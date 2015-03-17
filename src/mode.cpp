@@ -42,6 +42,7 @@ struct DiskSpace {
 
 struct Power {
   float percentCharged;
+  uint64_t timeToDepleted, timeToCharged;
   bool isCharging;
 };
 
@@ -198,6 +199,10 @@ STAK_EXPORT int init() {
     bat.replace<PressHandler>([](MenuSystem &ms, Entity e) {
       auto power = e.component<Power>();
       power->isCharging = stakPowerIsCharging();
+      if (power->isCharging)
+        power->timeToCharged = stakPowerTimeToFullyCharged();
+      else
+        power->timeToDepleted = stakPowerTimeToDepletion();
 
       e.component<DetailView>()->press();
     });
@@ -268,7 +273,9 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, -23);
-        fillTextCenteredWithSuffix("1.2", "hrs", 21, 14);
+        auto timeText =
+            formatMillis(power->isCharging ? power->timeToCharged : power->timeToDepleted);
+        fillTextCenteredWithSuffix(timeText.first, timeText.second, 21, 14);
         popTransform();
       }
     });
