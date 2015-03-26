@@ -10,16 +10,19 @@
 #include "fx.hpp"
 
 #include "gtx/string_cast.hpp"
+#include "gtx/rotate_vector.hpp"
 #include "entityx/entityx.h"
 
 #include <chrono>
-
-// Debug
 #include <iostream>
 
-using namespace glm;
+using glm::vec2;
 using namespace choreograph;
 using namespace otto;
+
+static const float pi = M_PI;
+static const float twoPi = M_PI * 2.0f;
+static const float halfPi = M_PI / 2.0f;
 
 static const float detailDurationMin = 1.0f;
 
@@ -44,6 +47,15 @@ struct Power {
   float percentCharged;
   uint64_t timeToDepleted, timeToCharged;
   bool isCharging;
+};
+
+struct Nap {
+  Output<float> progress = 0.0f;
+
+  void resetProgress() {
+    progress.disconnect();
+    progress = 0.0f;
+  }
 };
 
 struct DetailView {
@@ -236,8 +248,8 @@ STAK_EXPORT int init() {
         beginPath();
         float t = mode.time * 2.0f;
         float y = -48.0f + (power->percentCharged / 100.f) * 96.0f;
-        moveTo(-48.0f, y + std::sin(t) / M_PI * 10.0f);
-        lineTo(48.0f, y + std::cos(t) / M_PI * 10.0f);
+        moveTo(-48.0f, y + std::sin(t) / pi * 10.0f);
+        lineTo(48.0f, y + std::cos(t) / pi * 10.0f);
         lineTo(48, -48);
         lineTo(-48, -48);
         fillColor(0, 1, 0);
@@ -354,6 +366,137 @@ STAK_EXPORT int init() {
         drawBytes(ds->total);
         popTransform();
       }
+    });
+  }
+
+  //
+  // Nap
+  //
+  {
+    auto nap = makeMenuItem(mode.entities, mode.rootMenu);
+    nap.assign<Label>("nap");
+    nap.assign<Nap>();
+    nap.replace<DrawHandler>([](Entity e) {
+      auto nap = e.component<Nap>();
+      auto t = std::min(1.0f, nap->progress());
+      auto ti = 1.0f - t;
+      auto t2 = std::max(0.0f, nap->progress() - 1.0f);
+
+      static auto elasticIn = EaseInElastic(1.0f, 1.0f);
+      static auto quadIn = EaseInQuad();
+      static auto quadOut = EaseOutQuad();
+      static auto quadInOut = EaseInOutQuad();
+
+      // Sun / Moon
+      {
+        const int tipCount = 22;
+        const int vtxCount = tipCount * 2;
+        const float radius = display.bounds.size.x * 0.3f;
+        const float radiusTipOffset = radius * 0.15f;
+
+        ScopedTransform xf;
+        translate(vec2(0.0f, elasticIn(t2) * -display.bounds.size.y));
+        rotate(std::sin(mode.time) * 0.3f * ti);
+
+        {
+          beginPath();
+          auto tipAmt = mapUnitClamp(t, 0.5f, 0.0f);
+          vec2 p;
+          for (int i = 0; i < vtxCount; ++i) {
+            p = vec2(radius + tipAmt * radiusTipOffset * (i % 2 == 0 ? -1.0f : 1.0f), 0.0f);
+            p = glm::rotate(p, float(i) / float(vtxCount) * twoPi);
+            if (i == 0) moveTo(p); else lineTo(p);
+          }
+          fillColor(glm::mix(colorBGR(0xE7D11A), colorBGR(0x7DCED2), mapUnitClamp(t, 0.0f, 0.5f)));
+          fill();
+        }
+
+        strokeColor(vec3(0));
+        strokeWidth(3.0f);
+        strokeCap(VG_CAP_ROUND);
+
+        static const float faceSmile[] = {
+          -14, 2,
+          -13, 6, -8, 6, -7, 2,
+          7, 2,
+          8, 6, 13, 6, 14, 2,
+          -10, -7.25,
+          -5.455, -13.584, 5.455, -13.584, 10, -7.25
+        };
+
+        static const float faceSleep[] = {
+          -14, 2,
+          -13, -0.666, -8 , -0.666, -7, 2,
+          7, 2,
+          8, -0.666, 13 , -0.666, 14, 2,
+          -3, -9,
+          -1.637, -10.666, 1.636, -10.666, 3, -9
+        };
+
+        // TODO(ryan): Clean this up and just build the VGPath objects directly.
+        int i = 0;
+        auto fp = [&] {
+          return lerp(faceSmile[i], faceSleep[i++], quadInOut(t));
+        };
+
+        beginPath();
+        moveTo(fp(), fp());
+        cubicTo(fp(), fp(), fp(), fp(), fp(), fp());
+        stroke();
+
+        beginPath();
+        moveTo(fp(), fp());
+        cubicTo(fp(), fp(), fp(), fp(), fp(), fp());
+        stroke();
+
+        beginPath();
+        moveTo(fp(), fp());
+        cubicTo(fp(), fp(), fp(), fp(), fp(), fp());
+        stroke();
+
+        // Moon Shadow
+        if (t > 0.5f) {
+          ScopedTransform xf;
+          rotate(pi * 0.25f);
+
+          float r = radius + 1.0f;
+          beginPath();
+          moveTo(0, -r);
+          lineTo(r, -r);
+          lineTo(r, r);
+          lineTo(0, r);
+          float xscale = mapClamp(t, 0.5f, 1.0f, -1.0f, 1.0f);
+          float amax = xscale > 0.0f ? pi + halfPi : -halfPi;
+          arc(0, 0, 2.0f * r * quadOut(std::abs(xscale)), r * 2.0f, halfPi, amax);
+          fillColor(0, 0, 0, 0.75f);
+          fill();
+        }
+      }
+
+      if (t > 0.0f) {
+        float width = 3.0f;
+        beginPath();
+        arc(vec2(), display.bounds.size - width - 4.0f, halfPi + t * -twoPi, halfPi);
+        strokeColor(vec4(vec3(0.35f), 1.0f - quadIn(t2 * 2.0f)));
+        strokeWidth(width);
+        strokeCap(VG_CAP_BUTT);
+        stroke();
+      }
+    });
+    nap.replace<PressHandler>([](MenuSystem &ms, Entity e) {
+      auto nap = e.component<Nap>();
+      timeline.apply(&nap->progress)
+          .then<RampTo>(1.0f, 2.0f)
+          .finishFn([&ms, nap](Motion<float> &m) mutable {
+            timeline.apply(&nap->progress).then<RampTo>(2.0f, 0.5f);
+            ms.displayLabel("powering off");
+          });
+    });
+    nap.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
+      e.component<Nap>()->resetProgress();
+    });
+    nap.replace<DeselectHandler>([](MenuSystem &ms, Entity e) {
+      e.component<Nap>()->resetProgress();
     });
   }
 

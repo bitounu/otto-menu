@@ -6,6 +6,10 @@ float regularPolyRadius(float sideLen, uint32_t numSides) {
   return sideLen / (2.0f * std::sin(M_PI / numSides));
 }
 
+float lerp(float a, float b, float t) {
+  return a + (b - a) * t;
+}
+
 // Interpolate between two angles, assuming both angles are in the range 0-2pi.
 float lerpAngular(float angle, float targetAngle, float t) {
   auto angleDiff = std::abs(targetAngle - angle);
@@ -13,6 +17,14 @@ float lerpAngular(float angle, float targetAngle, float t) {
     targetAngle += TWO_PI;
   }
   return angle + (targetAngle - angle) * t;
+}
+
+float mapClamp(float x, float imin, float imax, float omin, float omax) {
+  return std::max(omin, std::min(omax, (x - imin) / (imax - imin) * (omax - omin) + omin));
+}
+
+float mapUnitClamp(float x, float imin, float imax) {
+  return std::max(0.0f, std::min(1.0f, (x - imin) / (imax - imin)));
 }
 
 void AngularParticle::step() {
