@@ -51,11 +51,6 @@ struct Power {
 
 struct Nap {
   Output<float> progress = 0.0f;
-
-  void resetProgress() {
-    progress.disconnect();
-    progress = 0.0f;
-  }
 };
 
 struct DetailView {
@@ -397,6 +392,7 @@ STAK_EXPORT int init() {
         ScopedTransform xf;
         translate(vec2(0.0f, elasticIn(t2) * -display.bounds.size.y));
         rotate(std::sin(mode.time) * 0.3f * ti);
+        scale(lerp(1.0f, 0.8f, t));
 
         // Body
         {
@@ -442,12 +438,12 @@ STAK_EXPORT int init() {
           strokeWidth(3.0f);
           strokeCap(VG_CAP_ROUND);
 
+          beginPath();
           for (int j = 0; j < 3; ++j) {
-            beginPath();
             moveTo(fp(), fp());
             cubicTo(fp(), fp(), fp(), fp(), fp(), fp());
-            stroke();
           }
+          stroke();
         }
 
         // Moon Shadow
@@ -470,9 +466,10 @@ STAK_EXPORT int init() {
       }
 
       if (t > 0.0f) {
-        float width = 3.0f;
+        const float width = 3.0f;
+        const float inset = 12.0f;
         beginPath();
-        arc(vec2(), display.bounds.size - width - 4.0f, halfPi + t * -twoPi, halfPi);
+        arc(vec2(), display.bounds.size - inset, halfPi + t * -twoPi, halfPi);
         strokeColor(vec4(vec3(0.35f), 1.0f - quadIn(t2 * 2.0f)));
         strokeWidth(width);
         strokeCap(VG_CAP_BUTT);
@@ -489,10 +486,10 @@ STAK_EXPORT int init() {
           });
     });
     nap.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
-      e.component<Nap>()->resetProgress();
+      timeline.apply(&e.component<Nap>()->progress).then<RampTo>(0.0f, 0.25f);
     });
     nap.replace<DeselectHandler>([](MenuSystem &ms, Entity e) {
-      e.component<Nap>()->resetProgress();
+      timeline.apply(&e.component<Nap>()->progress).then<RampTo>(0.0f, 0.25f);
     });
   }
 
