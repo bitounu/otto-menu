@@ -421,9 +421,9 @@ STAK_EXPORT int init() {
 
           static const float faceSleep[] = {
             -14, 2,                                // moveTo
-            -13, -0.666, -8 , -0.666, -7, 2,       // cubicTo
+            -13, -0.666, -8, -0.666, -7, 2,        // cubicTo
             7, 2,                                  // moveTo
-            8, -0.666, 13 , -0.666, 14, 2,         // cubicTo
+            8, -0.666, 13, -0.666, 14, 2,          // cubicTo
             -3, -9,                                // moveTo
             -1.637, -10.666, 1.636, -10.666, 3, -9 // cubicTo
           };

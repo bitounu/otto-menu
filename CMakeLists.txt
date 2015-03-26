@@ -6,11 +6,11 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(OTTO_GFX   "deps/otto-gfx")
 set(OTTO_SDK   "deps/otto-sdk")
 set(OTTO_UTILS "deps/otto-utils")
-set(STAK_HW    "deps/libStakHardware")
+set(OTTO_HW    "deps/libOttoHardware")
 set(ENTITYX    "deps/entityx")
 
 add_subdirectory(${OTTO_GFX})
-add_subdirectory(${STAK_HW})
+add_subdirectory(${OTTO_HW})
 
 set(ENTITYX_DT_TYPE float)
 set(ENTITYX_BUILD_SHARED OFF CACHE BOOL "No shared libs plz")
@@ -25,7 +25,7 @@ include_directories(
   ${OTTO_GFX}/src
   ${OTTO_SDK}/src
   ${OTTO_UTILS}/src
-  ${STAK_HW}/include
+  ${OTTO_HW}/include
   lib)
 
 include_directories(SYSTEM "/opt/vc/include") # VideoCore
@@ -41,7 +41,7 @@ set_source_files_properties(${otto_menu_src} PROPERTIES COMPILE_FLAGS
   "-include make_unique.hpp -include algorithm")
 
 add_library(otto_menu SHARED ${otto_menu_src})
-target_link_libraries(otto_menu otto_gfx StakHardware entityx)
+target_link_libraries(otto_menu otto_gfx OttoHardware entityx)
 
 # Copy assets to the build directory
 add_custom_command(
