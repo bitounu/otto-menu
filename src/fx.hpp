@@ -27,7 +27,7 @@ struct Bubbles {
   Bubbles(const Rect &bounds, float bubbleRadius);
   ~Bubbles();
 
-  void startBubbleAnim(size_t i, bool delay);
+  void startBubbleAnim(size_t i, float delay = 0.0f);
   void stopBubbleAnim(size_t i);
 
   void setCount(size_t count);

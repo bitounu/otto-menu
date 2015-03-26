@@ -2,6 +2,7 @@
 #include "rand.hpp"
 
 #include <algorithm>
+#include <iostream>
 
 using namespace choreograph;
 
@@ -16,35 +17,32 @@ Bubbles::Bubbles(const Rect &bounds, float bubbleRadius)
   bubbles.resize(maxBubbles);
 
   circle(circlePath, 0, 0, bubbleRadius);
-  setCount(0);
+  // setCount(0);
 }
 Bubbles::~Bubbles() {
   vgDestroyPath(circlePath);
 }
 
-void Bubbles::startBubbleAnim(size_t i, bool delay) {
+void Bubbles::startBubbleAnim(size_t i, float delay) {
   auto &bubble = bubbles[i];
   bubble.position = randVec2(bounds);
   bubble.color = colors[randInt(colors.size())];
   timeline.apply(&bubble.scale)
-      .then<Hold>(0.0f, delay ? float(i) / bubbleCount * 2.0f : 0.0f)
+      .then<Hold>(0.0f, delay)
       .then<RampTo>(1.0f, 1.0f, EaseOutQuad())
       .then<RampTo>(0.0f, 1.0f, EaseInQuad())
-      .finishFn([=](ch::Motion<float> &m) { startBubbleAnim(i, false); });
+      .finishFn([=](ch::Motion<float> &m) { startBubbleAnim(i); });
 }
 
 void Bubbles::stopBubbleAnim(size_t i) {
+  std::cout << "stop " << i << std::endl;
   timeline.apply(&bubbles[i].scale).then<RampTo>(0.0f, 1.0f, EaseOutQuad());
 }
 
 void Bubbles::setCount(size_t count) {
+  for (size_t i = count; i < bubbleCount; ++i) stopBubbleAnim(i);
+  for (size_t i = bubbleCount; i < count; ++i) startBubbleAnim(i, i * 0.1f);
   bubbleCount = count;
-  for (size_t i = 0; i < bubbles.size(); ++i) {
-    if (i < count)
-      startBubbleAnim(i, true);
-    else
-      stopBubbleAnim(i);
-  }
 }
 
 void Bubbles::setPercent(float percent) {
