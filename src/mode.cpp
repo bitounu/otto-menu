@@ -35,6 +35,8 @@ static struct MenuMode : public entityx::EntityX {
 
   float secondsPerFrame;
   uint32_t frameCount = 0;
+
+  bool isPoweringDown = false;
 } mode;
 
 static Display display = { { 96.0f, 96.0f } };
@@ -481,15 +483,24 @@ STAK_EXPORT int init() {
       timeline.apply(&nap->progress)
           .then<RampTo>(1.0f, 2.0f)
           .finishFn([&ms, nap](Motion<float> &m) mutable {
-            timeline.apply(&nap->progress).then<RampTo>(2.0f, 0.5f);
             ms.displayLabel("good night");
+            mode.isPoweringDown = true;
+            timeline.apply(&nap->progress)
+                .then<RampTo>(2.0f, 0.5f)
+                .then<Hold>(2.0f, 1.0f)
+                .finishFn([](Motion<float> &m) {
+                  // ottoSystemShutdown();
+                  exit(0); // TODO(ryan): This is temp. Remove when the ottoSystemShutdown() works.
+                });
           });
     });
     nap.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
-      timeline.apply(&e.component<Nap>()->progress).then<RampTo>(0.0f, 0.25f);
+      if (!mode.isPoweringDown)
+        timeline.apply(&e.component<Nap>()->progress).then<RampTo>(0.0f, 0.25f);
     });
     nap.replace<DeselectHandler>([](MenuSystem &ms, Entity e) {
-      timeline.apply(&e.component<Nap>()->progress).then<RampTo>(0.0f, 0.25f);
+      if (!mode.isPoweringDown)
+        timeline.apply(&e.component<Nap>()->progress).then<RampTo>(0.0f, 0.25f);
     });
   }
 
