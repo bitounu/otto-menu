@@ -374,7 +374,7 @@ STAK_EXPORT int init() {
   //
   {
     auto nap = makeMenuItem(mode.entities, mode.rootMenu);
-    nap.assign<Label>("nap");
+    nap.assign<Label>("sleep");
     nap.assign<Nap>();
     nap.replace<DrawHandler>([](Entity e) {
       auto nap = e.component<Nap>();
@@ -398,6 +398,7 @@ STAK_EXPORT int init() {
         translate(vec2(0.0f, elasticIn(t2) * -display.bounds.size.y));
         rotate(std::sin(mode.time) * 0.3f * ti);
 
+        // Body
         {
           beginPath();
           auto tipAmt = mapUnitClamp(t, 0.5f, 0.0f);
@@ -411,48 +412,43 @@ STAK_EXPORT int init() {
           fill();
         }
 
-        strokeColor(vec3(0));
-        strokeWidth(3.0f);
-        strokeCap(VG_CAP_ROUND);
+        // Face
+        {
+          static const float faceSmile[] = {
+            -14, 2,                                    // moveTo
+            -13, 6, -8, 6, -7, 2,                      // cubicTo
+            7, 2,                                      // moveTo
+            8, 6, 13, 6, 14, 2,                        // cubicTo
+            -10, -7.25,                                // moveTo
+            -5.455, -13.584, 5.455, -13.584, 10, -7.25 // cubicTo
+          };
 
-        static const float faceSmile[] = {
-          -14, 2,
-          -13, 6, -8, 6, -7, 2,
-          7, 2,
-          8, 6, 13, 6, 14, 2,
-          -10, -7.25,
-          -5.455, -13.584, 5.455, -13.584, 10, -7.25
-        };
+          static const float faceSleep[] = {
+            -14, 2,                                // moveTo
+            -13, -0.666, -8 , -0.666, -7, 2,       // cubicTo
+            7, 2,                                  // moveTo
+            8, -0.666, 13 , -0.666, 14, 2,         // cubicTo
+            -3, -9,                                // moveTo
+            -1.637, -10.666, 1.636, -10.666, 3, -9 // cubicTo
+          };
 
-        static const float faceSleep[] = {
-          -14, 2,
-          -13, -0.666, -8 , -0.666, -7, 2,
-          7, 2,
-          8, -0.666, 13 , -0.666, 14, 2,
-          -3, -9,
-          -1.637, -10.666, 1.636, -10.666, 3, -9
-        };
+          // TODO(ryan): Clean this up and just build the VGPath objects directly.
+          int i = 0;
+          auto fp = [&] {
+            return lerp(faceSmile[i], faceSleep[i++], quadInOut(t));
+          };
 
-        // TODO(ryan): Clean this up and just build the VGPath objects directly.
-        int i = 0;
-        auto fp = [&] {
-          return lerp(faceSmile[i], faceSleep[i++], quadInOut(t));
-        };
+          strokeColor(vec3(0));
+          strokeWidth(3.0f);
+          strokeCap(VG_CAP_ROUND);
 
-        beginPath();
-        moveTo(fp(), fp());
-        cubicTo(fp(), fp(), fp(), fp(), fp(), fp());
-        stroke();
-
-        beginPath();
-        moveTo(fp(), fp());
-        cubicTo(fp(), fp(), fp(), fp(), fp(), fp());
-        stroke();
-
-        beginPath();
-        moveTo(fp(), fp());
-        cubicTo(fp(), fp(), fp(), fp(), fp(), fp());
-        stroke();
+          for (int j = 0; j < 3; ++j) {
+            beginPath();
+            moveTo(fp(), fp());
+            cubicTo(fp(), fp(), fp(), fp(), fp(), fp());
+            stroke();
+          }
+        }
 
         // Moon Shadow
         if (t > 0.5f) {
@@ -489,7 +485,7 @@ STAK_EXPORT int init() {
           .then<RampTo>(1.0f, 2.0f)
           .finishFn([&ms, nap](Motion<float> &m) mutable {
             timeline.apply(&nap->progress).then<RampTo>(2.0f, 0.5f);
-            ms.displayLabel("powering off");
+            ms.displayLabel("good night");
           });
     });
     nap.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
