@@ -16,7 +16,6 @@
 #include <chrono>
 #include <iostream>
 
-using glm::vec2;
 using namespace choreograph;
 using namespace otto;
 
