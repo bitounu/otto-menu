@@ -556,13 +556,12 @@ STAK_EXPORT int shutter_button_released() {
 }
 
 STAK_EXPORT int power_button_pressed() {
-  mode.systems.system<MenuSystem>()->indicatePreviousMenu();
+  stak_activate_mode();
   display.wake();
   return 0;
 }
 
 STAK_EXPORT int power_button_released() {
-  mode.systems.system<MenuSystem>()->activatePreviousMenu();
   display.wake();
   return 0;
 }
