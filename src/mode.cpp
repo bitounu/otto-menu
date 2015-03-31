@@ -1,7 +1,7 @@
 #include "stak.h"
-#include "stak/devices/disk.hpp"
-#include "stak/devices/power.hpp"
-#include "stak/devices/wifi.hpp"
+#include "otto/devices/disk.hpp"
+#include "otto/devices/power.hpp"
+#include "otto/devices/wifi.hpp"
 
 #include "display.hpp"
 #include "util.hpp"
@@ -105,7 +105,7 @@ STAK_EXPORT int init() {
 
   loadFont(assets + "232MKSD-round-medium.ttf");
 
-  stakWifiSetSsid("OTTO");
+  ottoWifiSetSsid("OTTO");
 
   // Load images
   mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
@@ -173,15 +173,15 @@ STAK_EXPORT int init() {
       fontSize(18);
       textAlign(ALIGN_CENTER | ALIGN_BASELINE);
       fillColor(vec3(1));
-      fillText(stakWifiIsEnabled() ? stakWifiSsid() : "OFF");
+      fillText(ottoWifiIsEnabled() ? ottoWifiSsid() : "OFF");
     });
     wifi.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
-      if (!stakWifiIsEnabled()) {
-        stakWifiEnable();
+      if (!ottoWifiIsEnabled()) {
+        ottoWifiEnable();
         e.component<Blips>()->startAnim();
         ms.displayLabel("wifi on");
       } else {
-        stakWifiDisable();
+        ottoWifiDisable();
         e.component<Blips>()->stopAnim();
         ms.displayLabel("wifi off");
       }
@@ -198,11 +198,11 @@ STAK_EXPORT int init() {
     bat.assign<Power>();
     bat.replace<PressHandler>([](MenuSystem &ms, Entity e) {
       auto power = e.component<Power>();
-      power->isCharging = stakPowerIsCharging();
+      power->isCharging = ottoPowerIsCharging();
       if (power->isCharging)
-        power->timeToCharged = stakPowerTimeToFullyCharged();
+        power->timeToCharged = ottoPowerTimeToFullyCharged();
       else
-        power->timeToDepleted = stakPowerTimeToDepletion();
+        power->timeToDepleted = ottoPowerTimeToDepletion();
 
       e.component<DetailView>()->press();
     });
@@ -213,7 +213,7 @@ STAK_EXPORT int init() {
       auto detail = e.component<DetailView>();
 
       auto power = e.component<Power>();
-      power->percentCharged = stakPowerPercent();
+      power->percentCharged = ottoPowerPercent();
 
       if (detail->generalScale > 0.0f) {
         scale(detail->generalScale);
@@ -304,8 +304,8 @@ STAK_EXPORT int init() {
     mem.replace<SelectHandler>([](MenuSystem &ms, Entity e) {
       MenuItem::defaultHandleSelect(ms, e);
       auto ds = e.component<DiskSpace>();
-      ds->used = stakDiskUsage();
-      ds->total = stakDiskSize();
+      ds->used = ottoDiskUsage();
+      ds->total = ottoDiskSize();
       e.component<Bubbles>()->setPercent(double(ds->used) / double(ds->total));
     });
     mem.replace<DrawHandler>([=](Entity e) {
