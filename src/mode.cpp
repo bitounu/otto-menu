@@ -232,7 +232,7 @@ STAK_EXPORT int init() {
           translate(display.bounds.size * -0.5f);
 
           beginMask();
-          draw(mode.iconBatteryMask);
+          drawSvg(mode.iconBatteryMask);
           endMask();
 
           beginPath();
@@ -253,7 +253,7 @@ STAK_EXPORT int init() {
 
         if (power->isCharging) {
           translate(display.bounds.size * -0.5f);
-          draw(mode.iconCharging);
+          drawSvg(mode.iconCharging);
         }
       }
 
@@ -326,7 +326,7 @@ STAK_EXPORT int init() {
         translate(display.bounds.size * -0.5f);
 
         beginMask();
-        draw(mode.iconMemoryMask);
+        drawSvg(mode.iconMemoryMask);
         endMask();
 
         beginPath();
