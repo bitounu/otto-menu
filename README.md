@@ -1,4 +1,8 @@
-# Building
+# Otto-Menu
+
+OTTO's menu interface!
+
+## Building
 
 This project should be cross-compiled with Vagrant or the `macross` OS X toolchain. See [otto-creator](https://github.com/NextThingCo/otto-creator) for details.
 
@@ -16,7 +20,7 @@ Then from the build directory you can run `make`.
 
 	make
 
-# Running
+## Running
 
 Run the otto-sdk `main` with the menu and mode libs:
 
@@ -25,3 +29,9 @@ Run the otto-sdk `main` with the menu and mode libs:
 		<mode-library.so>
 
 Note that `otto-menu` and `otto-sdk` must be located at `/stak/sdk` on your Pi.
+
+## TODO
+
+- Switching modes
+- Mode icons
+- Transitions to and from modes
