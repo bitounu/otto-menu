@@ -556,8 +556,7 @@ STAK_EXPORT int shutter_button_released() {
 }
 
 STAK_EXPORT int power_button_pressed() {
-  stak_activate_mode();
-  display.wake();
+  if (!display.wake() && !mode.isPoweringDown) stak_activate_mode();
   return 0;
 }
 
