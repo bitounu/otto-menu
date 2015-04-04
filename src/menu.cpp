@@ -1,4 +1,5 @@
 #include "menu.hpp"
+#include "math.hpp"
 
 using namespace choreograph;
 using namespace glm;

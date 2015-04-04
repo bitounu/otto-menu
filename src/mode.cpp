@@ -5,8 +5,10 @@
 
 #include "display.hpp"
 #include "util.hpp"
+#include "math.hpp"
 #include "menu.hpp"
 #include "rand.hpp"
+#include "draw.hpp"
 #include "fx.hpp"
 
 #include "gtx/string_cast.hpp"
@@ -467,14 +469,8 @@ STAK_EXPORT int init() {
       }
 
       if (t > 0.0f) {
-        const float width = 3.0f;
-        const float inset = 12.0f;
-        beginPath();
-        arc(vec2(), display.bounds.size - inset, halfPi + t * -twoPi, halfPi);
-        strokeColor(vec4(vec3(0.35f), 1.0f - quadIn(t2 * 2.0f)));
-        strokeWidth(width);
-        strokeCap(VG_CAP_BUTT);
-        stroke();
+        fillColor(vec4(vec3(0.35f), 1.0f - quadIn(t2 * 2.0f)));
+        drawProgressArc(display, t);
       }
     });
     nap.replace<PressHandler>([](MenuSystem &ms, Entity e) {
