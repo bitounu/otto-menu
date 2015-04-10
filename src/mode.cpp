@@ -181,31 +181,6 @@ STAK_EXPORT int init() {
   }
 
   //
-  // Update
-  //
-  {
-    auto update = makeMenuItem(mode.entities, mode.rootMenu);
-    update.assign<Label>("update");
-    update.replace<DrawHandler>([](Entity e) {
-      translate(0, -30);
-      fontSize(18);
-      textAlign(ALIGN_CENTER | ALIGN_BASELINE);
-      fillColor(vec3(1));
-      fillText("UPDATE");
-    });
-
-    update.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
-			static bool toggle=false;
-      if (!toggle) {
-        ms.displayLabel("update on");
-      } else {
-        ms.displayLabel("update off");
-      }
-			toggle=!toggle;
-    });
-  }
-
-  //
   // Battery
   //
   {
