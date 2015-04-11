@@ -11,6 +11,7 @@ set(ENTITYX    "deps/entityx")
 
 add_subdirectory(${OTTO_GFX})
 add_subdirectory(${OTTO_HW})
+add_subdirectory(${OTTO_RUNNER})
 
 set(ENTITYX_DT_TYPE float)
 set(ENTITYX_BUILD_SHARED OFF CACHE BOOL "No shared libs plz")

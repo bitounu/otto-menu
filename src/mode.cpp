@@ -180,6 +180,7 @@ STAK_EXPORT int init() {
     });
   }
 
+/*
   //
   // Update
   //
@@ -204,6 +205,7 @@ STAK_EXPORT int init() {
 			toggle=!toggle;
     });
   }
+*/
 
   //
   // Battery
