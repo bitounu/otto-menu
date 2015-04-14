@@ -6,11 +6,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(OTTO_GFX   "deps/otto-gfx")
 set(OTTO_RUNNER   "deps/otto-runner")
 set(OTTO_UTILS "deps/otto-utils")
-set(OTTO_HW    "deps/libOttoHardware")
 set(ENTITYX    "deps/entityx")
 
 add_subdirectory(${OTTO_GFX})
-add_subdirectory(${OTTO_HW})
 add_subdirectory(${OTTO_RUNNER})
 
 set(ENTITYX_DT_TYPE float)
@@ -26,7 +24,6 @@ include_directories(
   ${OTTO_GFX}/src
   ${OTTO_RUNNER}/src
   ${OTTO_UTILS}/src
-  ${OTTO_HW}/include
   lib)
 
 include_directories(SYSTEM "${VC_SDK}/include") # VideoCore
