@@ -47,9 +47,9 @@ static Display display = { { 96.0f, 96.0f } };
 struct DiskSpace {
   uint64_t used, total;
 };
-struct Update {
-  OttDate::OttDate* updater = OttDate::OttDate::instance();
-};
+//struct Update {
+//  OttDate::OttDate* updater = OttDate::OttDate::instance();
+//};
 
 struct Power {
   float percentCharged;
