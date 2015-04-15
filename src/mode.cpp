@@ -192,7 +192,7 @@ STAK_EXPORT int init() {
   {
     auto update = makeMenuItem(mode.entities, mode.rootMenu);
     update.assign<Label>("OttDate");
-    update.assign<Update>();
+    //update.assign<Update>();
     update.replace<DrawHandler>([](Entity e) {
       static std::string ip = ottoSystemCallProcess("ifconfig eth1 | grep Bcast | cut -d: -f 2 | awk '{print $1}'");
       translate(0, -30);
