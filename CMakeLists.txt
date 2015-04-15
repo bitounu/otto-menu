@@ -9,7 +9,6 @@ set(OTTO_UTILS "deps/otto-utils")
 set(ENTITYX    "deps/entityx")
 
 add_subdirectory(${OTTO_GFX})
-add_subdirectory(${OTTO_RUNNER})
 
 set(ENTITYX_DT_TYPE float)
 set(ENTITYX_BUILD_SHARED OFF CACHE BOOL "No shared libs plz")
@@ -38,7 +37,7 @@ set(otto_menu_src ${deps_src} ${src})
 set_source_files_properties(${otto_menu_src} PROPERTIES COMPILE_FLAGS
   "-include make_unique.hpp -include algorithm")
 
-add_library(otto_menu SHARED ${otto_menu_src})
+add_library(otto_menu MODULE ${otto_menu_src})
 target_link_libraries(otto_menu otto_gfx OttoHardware entityx)
 
 # Copy assets to the build directory

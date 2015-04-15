@@ -2,6 +2,7 @@
 #include "otto/devices/disk.hpp"
 #include "otto/devices/power.hpp"
 #include "otto/devices/wifi.hpp"
+#include "otto/system.hpp"
 
 #include "display.hpp"
 #include "util.hpp"
@@ -10,6 +11,7 @@
 #include "rand.hpp"
 #include "draw.hpp"
 #include "fx.hpp"
+//#include "ottdate.hpp"
 
 #include "gtx/string_cast.hpp"
 #include "gtx/rotate_vector.hpp"
@@ -44,6 +46,10 @@ static Display display = { { 96.0f, 96.0f } };
 
 struct DiskSpace {
   uint64_t used, total;
+};
+struct Update {
+  void* ptr;
+  //OttDate::OttDate* updater = OttDate::OttDate::instance();
 };
 
 struct Power {
@@ -180,32 +186,42 @@ STAK_EXPORT int init() {
     });
   }
 
-/*
+
   //
   // Update
   //
   {
     auto update = makeMenuItem(mode.entities, mode.rootMenu);
-    update.assign<Label>("update");
+    update.assign<Label>("OttDate");
+    update.assign<Update>();
     update.replace<DrawHandler>([](Entity e) {
+      static std::string ip = ottoSystemCallProcess("ifconfig eth1 | grep Bcast | cut -d: -f 2 | awk '{print $1}'");
       translate(0, -30);
-      fontSize(18);
+      fontSize(14);
       textAlign(ALIGN_CENTER | ALIGN_BASELINE);
-      fillColor(vec3(1));
-      fillText("UPDATE");
+      fillColor( vec3(1) );
+      //int state = e.component<Update>()->updater->main_loop();
+      fillText( "Hello OTTO!" );
+      translate(0, 14);
+      if( ip.length() < 2) {
+        fillText( "No IP" );
+        ip = ottoSystemCallProcess("ifconfig eth1 | grep Bcast | cut -d: -f 2 | awk '{print $1}'");
+      }
+      else fillText( ip );
     });
 
     update.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
 			static bool toggle=false;
       if (!toggle) {
-        ms.displayLabel("update on");
+        ms.displayLabel("OttDating...");
+        ottoSystemCallProcess("/mnt/update.sh");
+        //e.component<Update>()->updater->next_state( OttDate::OttDate::EState_Checking );
       } else {
-        ms.displayLabel("update off");
+        ms.displayLabel("OttDate off");
       }
 			toggle=!toggle;
     });
   }
-*/
 
   //
   // Battery
