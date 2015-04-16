@@ -1,7 +1,7 @@
 #pragma once
 
 #include "timeline.hpp"
-#include "gfx.hpp"
+#include "otto-gfx/gfx.hpp"
 #include "util.hpp"
 
 #include "entityx/entityx.h"

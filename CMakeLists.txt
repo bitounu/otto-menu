@@ -3,12 +3,10 @@ project(otto_menu)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-set(OTTO_GFX   "deps/otto-gfx")
 set(OTTO_RUNNER   "deps/otto-runner")
 set(OTTO_UTILS "deps/otto-utils")
 set(ENTITYX    "deps/entityx")
 
-add_subdirectory(${OTTO_GFX})
 
 set(ENTITYX_DT_TYPE float)
 set(ENTITYX_BUILD_SHARED OFF CACHE BOOL "No shared libs plz")
@@ -18,9 +16,6 @@ add_subdirectory(${ENTITYX})
 include_directories(
   deps/Choreograph/src
   ${ENTITYX}
-  ${OTTO_GFX}/deps/nanosvg/src
-  ${OTTO_GFX}/deps/glm/glm
-  ${OTTO_GFX}/src
   ${OTTO_RUNNER}/src
   ${OTTO_UTILS}/src
   lib)

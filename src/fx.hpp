@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gfx.hpp"
+#include "otto-gfx/gfx.hpp"
 #include "timeline.hpp"
 
 #include <vector>
