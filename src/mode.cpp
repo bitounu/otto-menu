@@ -11,7 +11,7 @@
 #include "rand.hpp"
 #include "draw.hpp"
 #include "fx.hpp"
-//#include "ottdate.hpp"
+#include "ottdate.hpp"
 
 #include "gtx/string_cast.hpp"
 #include "gtx/rotate_vector.hpp"
@@ -47,9 +47,9 @@ static Display display = { { 96.0f, 96.0f } };
 struct DiskSpace {
   uint64_t used, total;
 };
-//struct Update {
-//  OttDate::OttDate* updater = OttDate::OttDate::instance();
-//};
+struct Update {
+  OttDate* updater = OttDate::instance();
+};
 
 struct Power {
   float percentCharged;
@@ -191,36 +191,50 @@ STAK_EXPORT int init() {
   //
   {
     auto update = makeMenuItem(mode.entities, mode.rootMenu);
-    update.assign<Label>("OttDate");
-    //update.assign<Update>();
+    update.assign<Label>("Update");
+
     update.replace<DrawHandler>([](Entity e) {
-      static std::string ip = ottoSystemCallProcess("ifconfig eth1 | grep Bcast | cut -d: -f 2 | awk '{print $1}'");
-      translate(0, -30);
-      fontSize(14);
+
+			//print current state
+      fontSize(12);
       textAlign(ALIGN_CENTER | ALIGN_BASELINE);
       fillColor( vec3(1) );
-      //int state = e.component<Update>()->updater->main_loop();
-      fillText( "Update" );
-      translate(0, 14);
-      if( ip.length() < 2) {
-        fillText( "No IP" );
-        ip = ottoSystemCallProcess("ifconfig eth1 | grep Bcast | cut -d: -f 2 | awk '{print $1}'");
-      }
-      else fillText( ip );
+			fillText( OttDate::instance()->state_name() );
+
+			switch( OttDate::instance()->current_state() )
+			{
+			  case OttDate::EState_Downloading: {	
+					fontSize(18);
+					translate(0, -20);
+					static std::stringstream ss;
+					ss.str("");
+					ss<<OttDate::instance()->download_percentage();
+					ss<<"%";
+					fillText( ss.str() );
+					translate(0, 20);
+					//fillColor(vec4(colorBGR(0xEC008B), rewindMeterOpacity()));
+   				drawProgressArc(display, (OttDate::instance()->download_percentage()%100) / 100.0); 
+					break;
+				}
+			}
+
     });
 
     update.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
-      static bool toggle=false;
-      if (!toggle) {
-        ms.displayLabel("OttDating...");
-        ottoSystemCallProcess("/mnt/update.sh");
-        //e.component<Update>()->updater->next_state( OttDate::OttDate::EState_Checking );
-      } else {
-        ms.displayLabel("OttDate off");
-      }
-      toggle=!toggle;
-    });
-  }
+				switch(OttDate::instance()->current_state()) {
+					case OttDate::EState_Idle:
+						OttDate::instance()->trigger_update();
+						break;
+					case OttDate::EState_AskForReboot:
+						ms.displayLabel("Bye bye!");
+						system("/sbin/reboot");
+					break;
+				default:
+					ms.displayLabel("busy...");
+				break;
+				}
+		});
+	}
 
   //
   // Battery
