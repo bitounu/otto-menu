@@ -13,8 +13,8 @@
 #include "fx.hpp"
 //#include "ottdate.hpp"
 
-#include "gtx/string_cast.hpp"
-#include "gtx/rotate_vector.hpp"
+#include <glm/gtx/string_cast.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 #include "entityx/entityx.h"
 
 #include <chrono>
