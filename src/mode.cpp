@@ -522,8 +522,7 @@ STAK_EXPORT int init() {
                 .then<RampTo>(2.0f, 0.5f)
                 .then<Hold>(2.0f, 1.0f)
                 .finishFn([](Motion<float> &m) {
-                  // ottoSystemShutdown();
-                  exit(0); // TODO(ryan): This is temp. Remove when the ottoSystemShutdown() works.
+                  ottoSystemShutdown();
                 });
           });
     });
