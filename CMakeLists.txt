@@ -3,6 +3,8 @@ project(otto_menu)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
+find_package( OttDate REQUIRED )
+
 set(OTTO_RUNNER   "deps/otto-runner")
 set(OTTO_UTILS "deps/otto-utils")
 set(ENTITYX    "deps/entityx")
@@ -33,7 +35,7 @@ set_source_files_properties(${otto_menu_src} PROPERTIES COMPILE_FLAGS
   "-include make_unique.hpp -include algorithm")
 
 add_library(otto_menu MODULE ${otto_menu_src})
-target_link_libraries(otto_menu otto_gfx OttoHardware entityx)
+target_link_libraries(otto_menu otto_gfx OttoHardware entityx ${OTTDATE_LIBRARIES})
 
 # Copy assets to the build directory
 add_custom_command(
