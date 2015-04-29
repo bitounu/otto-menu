@@ -19,6 +19,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <thread>
 
 using namespace choreograph;
 using namespace otto;
@@ -46,9 +47,6 @@ static Display display = { { 96.0f, 96.0f } };
 
 struct DiskSpace {
   uint64_t used, total;
-};
-struct Update {
-  OttDate* updater = OttDate::instance();
 };
 
 struct Power {
@@ -195,28 +193,28 @@ STAK_EXPORT int init() {
 
     update.replace<DrawHandler>([](Entity e) {
 
-			//print current state
-      fontSize(12);
-      textAlign(ALIGN_CENTER | ALIGN_BASELINE);
-      fillColor( vec3(1) );
-			fillText( OttDate::instance()->state_name() );
+			  //print current state
+        fontSize(12);
+        textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+        fillColor( vec3(1) );
+			  fillText( OttDate::instance()->state_name() );
 
-			switch( OttDate::instance()->current_state() )
-			{
-			  case OttDate::EState_Downloading: {	
-					fontSize(18);
-					translate(0, -20);
-					static std::stringstream ss;
-					ss.str("");
-					ss<<OttDate::instance()->download_percentage();
-					ss<<"%";
-					fillText( ss.str() );
-					translate(0, 20);
-					//fillColor(vec4(colorBGR(0xEC008B), rewindMeterOpacity()));
-   				drawProgressArc(display, (OttDate::instance()->download_percentage()%100) / 100.0); 
-					break;
-				}
-			}
+			  switch( OttDate::instance()->current_state() )
+			  {
+			    case OttDate::EState_Downloading: {	
+			  		fontSize(18);
+			  		translate(0, -20);
+			  		static std::stringstream ss;
+			  		ss.str("");
+			  		ss<<OttDate::instance()->download_percentage();
+			  		ss<<"%";
+			  		fillText( ss.str() );
+			  		translate(0, 20);
+			  		//fillColor(vec4(colorBGR(0xEC008B), rewindMeterOpacity()));
+   		  		drawProgressArc(display, (OttDate::instance()->download_percentage()%100) / 100.0); 
+			  		break;
+			  	}
+			  }
 
     });
 
@@ -227,11 +225,15 @@ STAK_EXPORT int init() {
 						break;
 					case OttDate::EState_AskForReboot:
 						ms.displayLabel("Bye bye!");
-						system("/sbin/reboot");
+            static std::thread a( []() {
+              std::this_thread::sleep_for (std::chrono::seconds(1));
+						  system("/sbin/reboot");
+              }
+            );
 					break;
-				default:
-					ms.displayLabel("busy...");
-				break;
+				  default:
+				  	ms.displayLabel("busy...");
+				  break;
 				}
 		});
 	}
@@ -306,8 +308,9 @@ STAK_EXPORT int init() {
         translate(0, 8);
         textAlign(ALIGN_CENTER | ALIGN_BASELINE);
         fontSize(20);
-        char percentText[5];
-        sprintf(percentText, "%.1f%%", power->percentCharged);
+        char percentText[20];
+        //sprintf(percentText, "%.1f%%", power->percentCharged);
+        sprintf(percentText, "coming");
         fillText(percentText);
         popTransform();
 
@@ -323,7 +326,9 @@ STAK_EXPORT int init() {
         translate(0, -23);
         auto timeText =
             formatMillis(power->isCharging ? power->timeToCharged : power->timeToDepleted);
-        fillTextCenteredWithSuffix(timeText.first, timeText.second, 21, 14);
+        //fillTextCenteredWithSuffix(timeText.first, timeText.second, 21, 14);
+        sprintf(percentText, "soon...");
+        fillText(percentText);
         popTransform();
       }
     });
@@ -405,6 +410,8 @@ STAK_EXPORT int init() {
     });
   }
 
+// Deactivate until kernel module pulling GPIO pin is ready
+#ifdef ACTIVTATE_NAP
   //
   // Nap
   //
@@ -535,6 +542,7 @@ STAK_EXPORT int init() {
         timeline.apply(&e.component<Nap>()->progress).then<RampTo>(0.0f, 0.25f);
     });
   }
+#endif
 
   display.wake();
 
