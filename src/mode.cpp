@@ -19,6 +19,10 @@
 
 #include <chrono>
 #include <iostream>
+#include <thread>
+#include <mutex>
+#include <cstring>
+#include <sys/stat.h>
 
 using namespace choreograph;
 using namespace otto;
@@ -28,6 +32,39 @@ static const float twoPi = M_PI * 2.0f;
 static const float halfPi = M_PI / 2.0f;
 
 static const float detailDurationMin = 1.0f;
+
+static std::thread infoPollingThread;
+static volatile bool running = true;
+
+std::mutex info_mutex;
+
+static struct WifiInfo {
+  std::mutex info_mutex;
+  std::string ip;
+  std::string ssid;
+
+  const std::string get_ssid() {
+    std::lock_guard<std::mutex> lock( info_mutex );
+    return ssid;
+
+  }
+  void set_ssid( const std::string& new_ssid ) {
+    std::lock_guard<std::mutex> lock( info_mutex );
+    ssid = new_ssid;
+    
+  }
+  const std::string get_ip() {
+    std::lock_guard<std::mutex> lock( info_mutex );
+    return ip;
+
+  }
+  void set_ip( const std::string& new_ip ) {
+    std::lock_guard<std::mutex> lock( info_mutex );
+    ip = new_ip;
+    
+  }
+} wifiInfo;
+
 
 static struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
@@ -100,6 +137,53 @@ struct DetailView {
 STAK_EXPORT int init() {
   auto assets = std::string(stak_assets_path());
 
+  mkdir( "/mnt/tmp", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH );
+  mkdir( "/mnt/pictures", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH );
+
+  running = true;
+  wifiInfo.set_ssid(std::string(""));
+  wifiInfo.set_ip(std::string(""));
+  auto t = std::thread( [] {
+    auto ssid_command = "iwconfig wlan1 | grep ESSID | cut -d\\\" -f 2";
+    auto ip_command_eth1 = "ip addr show eth1 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep -oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
+    auto ip_command_wlan0 = "ip addr show wlan0 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep -oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
+    while( running ) {
+      {
+        auto retval = ottoSystemCallProcess( ssid_command );
+        if( retval != nullptr ) {
+          int size = strlen( retval );
+          if( size > 0 ) {
+            wifiInfo.set_ssid( std::string(retval) );
+          }
+          else{
+           wifiInfo.set_ip( std::string("") ); 
+          }
+        }
+      }
+      {
+        auto retval = ottoSystemCallProcess( ip_command_wlan0 );
+        auto ip_string = std::string("");
+        if( retval != nullptr ) {
+          int size = strlen( retval );
+          if( size > 0 ) {
+            ip_string = std::string(retval);
+          }
+          else{
+            retval = ottoSystemCallProcess( ip_command_eth1 );
+            int size = strlen( retval );
+            if( retval != nullptr ) {
+              if( size > 0 ) {
+                ip_string = std::string(retval);
+              }
+            }
+          }
+        }
+        wifiInfo.set_ip( ip_string );
+      }
+      std::this_thread::sleep_for(std::chrono::seconds(2));
+    }
+  });
+  infoPollingThread = std::move(t);
   loadFont(assets + "232MKSD-round-medium.ttf");
 
   ottoWifiSetSsid("OTTO");
@@ -148,7 +232,21 @@ STAK_EXPORT int init() {
     auto wifi = makeMenuItem(mode.entities, mode.rootMenu);
     wifi.assign<Label>("wifi");
     wifi.assign<Blips>();
+    wifi.assign<DetailView>();
     wifi.replace<DrawHandler>([](Entity e) {
+      auto detail = e.component<DetailView>();
+      auto fillTextCentered =  [](const std::string &text, float textSize) {
+        ScopedTransform xf;
+
+        fontSize(textSize);
+        auto textBounds = getTextBounds(text);
+
+        textAlign(ALIGN_LEFT | ALIGN_BASELINE);
+        translate(-0.5f * textBounds.size.x, 0);
+        fontSize(textSize);
+        fillText(text);
+        translate(textBounds.size.x, 0);
+      };
       {
         ScopedTransform xf;
         translate(0, 20);
@@ -165,21 +263,69 @@ STAK_EXPORT int init() {
 
         e.component<Blips>()->drawCenter();
       }
+      if( !ottoWifiIsEnabled() ) {
+          pushTransform();
+          translate(0, -30);
+          fontSize(18);
+          textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+          fillColor(vec3(1));
+          fillText( "OFF" );
+          popTransform();
+        }
+      if (detail->detailScale > 0.0f) {
+        auto ds = e.component<DiskSpace>();
 
-      translate(0, -30);
-      fontSize(18);
-      textAlign(ALIGN_CENTER | ALIGN_BASELINE);
-      fillColor(vec3(1));
-      fillText(ottoWifiIsEnabled() ? ottoWifiSsid() : "OFF");
+        scale(detail->detailScale);
+        
+        pushTransform();
+        translate(display.bounds.size * -0.5f);
+        translate(0, 20);
+        
+        beginPath();
+        rect(display.bounds);
+        fillColor(0, 0, 0, 0.75f);
+        fill();
+        popTransform();
+
+        fillColor(vec3(1));
+
+        pushTransform();
+        translate(0, 4);
+        fillTextCentered( wifiInfo.get_ssid().c_str(), 10 );
+        popTransform();
+
+
+        pushTransform();
+        translate(0, -8);
+        beginPath();
+        moveTo(-20, 4);
+        lineTo(20, 4);
+        strokeCap(VG_CAP_SQUARE);
+        strokeWidth(2);
+        strokeColor(vec3(0.35f));
+        stroke();
+        popTransform();
+
+        pushTransform();
+        translate(0, -18);
+        fillTextCentered( wifiInfo.get_ip().c_str(), 10 );
+        popTransform();
+      }
+
+
+
+
     });
     wifi.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
       if (!ottoWifiIsEnabled()) {
         ottoWifiEnable();
         e.component<Blips>()->startAnim();
+        e.component<DetailView>()->press();
         ms.displayLabel("wifi on");
       } else {
         ottoWifiDisable();
         e.component<Blips>()->stopAnim();
+        e.component<DetailView>()->release();
         ms.displayLabel("wifi off");
       }
     });
@@ -542,6 +688,8 @@ STAK_EXPORT int init() {
 }
 
 STAK_EXPORT int shutdown() {
+  running = false;
+  infoPollingThread.join();
   return 0;
 }
 
