@@ -19,8 +19,10 @@
 
 #include <chrono>
 #include <iostream>
+#include <stdlib.h>
 #include <thread>
 #include <mutex>
+#include <algorithm>
 #include <cstring>
 #include <sys/stat.h>
 
@@ -51,7 +53,7 @@ static struct WifiInfo {
   void set_ssid( const std::string& new_ssid ) {
     std::lock_guard<std::mutex> lock( info_mutex );
     ssid = new_ssid;
-    
+
   }
   const std::string get_ip() {
     std::lock_guard<std::mutex> lock( info_mutex );
@@ -61,7 +63,7 @@ static struct WifiInfo {
   void set_ip( const std::string& new_ip ) {
     std::lock_guard<std::mutex> lock( info_mutex );
     ip = new_ip;
-    
+
   }
 } wifiInfo;
 
@@ -131,7 +133,36 @@ struct DetailView {
   }
 };
 
+
+std::string pipe_to_string( const char* command )
+{
+    FILE* file = popen( command, "r" );
+
+    if( file )
+    {
+        std::ostringstream stm;
+
+        constexpr std::size_t MAX_LINE_SZ = 1024;
+        char line[MAX_LINE_SZ];
+
+        while( fgets( line, MAX_LINE_SZ, file ) ) stm << line;
+
+        pclose(file);
+        std::string returnData = stm.str();
+        returnData.erase(std::remove_if(returnData.begin(),
+                              returnData.end(),
+                              [](char x){ return ( (x == '\n')||(x=='\r') ); }),
+               returnData.end());
+        return returnData;
+    }
+
+    return "";
+}
+
+static bool wifiState = false;
+
 STAK_EXPORT int init() {
+  wifiState = ottoWifiIsEnabled();
   auto assets = std::string(stak_assets_path());
 
   mkdir( "/mnt/tmp", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH );
@@ -146,33 +177,22 @@ STAK_EXPORT int init() {
     auto ip_command_wlan0 = "ip addr show wlan0 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep -oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
     while( running ) {
       {
-        auto retval = ottoSystemCallProcess( ssid_command );
-        if( retval != nullptr ) {
-          int size = strlen( retval );
-          if( size > 0 ) {
-            wifiInfo.set_ssid( std::string(retval) );
-          }
-          else{
-           wifiInfo.set_ip( std::string("") ); 
-          }
+        auto retval = pipe_to_string( ssid_command );
+        if( !retval.empty() ) {
+          wifiInfo.set_ssid( std::string(retval) );
+        } else{
+          wifiInfo.set_ssid( std::string("") );
         }
       }
       {
-        auto retval = ottoSystemCallProcess( ip_command_wlan0 );
+        std::string retval = pipe_to_string( ip_command_wlan0 );
         auto ip_string = std::string("");
-        if( retval != nullptr ) {
-          int size = strlen( retval );
-          if( size > 0 ) {
-            ip_string = std::string(retval);
-          }
-          else{
-            retval = ottoSystemCallProcess( ip_command_eth1 );
-            int size = strlen( retval );
-            if( retval != nullptr ) {
-              if( size > 0 ) {
-                ip_string = std::string(retval);
-              }
-            }
+        if( !retval.empty() ) {
+          ip_string = retval;
+        } else{
+          retval = pipe_to_string( ip_command_eth1 );
+          if( !retval.empty() ) {
+            ip_string = retval;
           }
         }
         wifiInfo.set_ip( ip_string );
@@ -182,8 +202,6 @@ STAK_EXPORT int init() {
   });
   infoPollingThread = std::move(t);
   loadFont(assets + "232MKSD-round-medium.ttf");
-
-  ottoWifiSetSsid("OTTO");
 
   // Load images
   mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
@@ -231,6 +249,18 @@ STAK_EXPORT int init() {
     wifi.assign<Blips>();
     wifi.assign<DetailView>();
     wifi.replace<DrawHandler>([](Entity e) {
+
+      if( wifiState != ottoWifiIsEnabled() ) {
+        wifiState = ottoWifiIsEnabled();
+        if ( wifiState ) {
+          e.component<Blips>()->startAnim();
+          e.component<DetailView>()->press();
+        }
+        else {
+          e.component<Blips>()->stopAnim();
+          e.component<DetailView>()->release();
+        }
+      }
       auto detail = e.component<DetailView>();
       auto fillTextCentered =  [](const std::string &text, float textSize) {
         ScopedTransform xf;
@@ -273,11 +303,11 @@ STAK_EXPORT int init() {
         auto ds = e.component<DiskSpace>();
 
         scale(detail->detailScale);
-        
+
         pushTransform();
         translate(display.bounds.size * -0.5f);
         translate(0, 20);
-        
+
         beginPath();
         rect(display.bounds);
         fillColor(0, 0, 0, 0.75f);
@@ -288,7 +318,8 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, 4);
-        fillTextCentered( wifiInfo.get_ssid().c_str(), 10 );
+        if( !wifiInfo.get_ssid().empty() )
+          fillTextCentered( wifiInfo.get_ssid().c_str(), 10 );
         popTransform();
 
 
@@ -305,7 +336,8 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, -18);
-        fillTextCentered( wifiInfo.get_ip().c_str(), 10 );
+        if( !wifiInfo.get_ip().empty() )
+          fillTextCentered( wifiInfo.get_ip().c_str(), 10 );
         popTransform();
       }
 
@@ -316,14 +348,14 @@ STAK_EXPORT int init() {
     wifi.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
       if (!ottoWifiIsEnabled()) {
         ottoWifiEnable();
-        e.component<Blips>()->startAnim();
-        e.component<DetailView>()->press();
-        ms.displayLabel("wifi on");
+        //e.component<Blips>()->startAnim();
+        //e.component<DetailView>()->press();
+        //ms.displayLabel("wifi on");
       } else {
         ottoWifiDisable();
-        e.component<Blips>()->stopAnim();
-        e.component<DetailView>()->release();
-        ms.displayLabel("wifi off");
+        //e.component<Blips>()->stopAnim();
+        //e.component<DetailView>()->release();
+        //ms.displayLabel("wifi off");
       }
     });
   }
@@ -789,4 +821,3 @@ STAK_EXPORT int crank_released() {
   display.wake();
   return 0;
 }
-
