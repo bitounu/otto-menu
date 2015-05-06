@@ -338,15 +338,33 @@ STAK_EXPORT int init() {
 
     update.replace<DrawHandler>([](Entity e) {
 
-			  //print current state
-        fontSize(12);
-        textAlign(ALIGN_CENTER | ALIGN_BASELINE);
-        fillColor( vec3(1) );
-			  fillText( OttDate::instance()->state_name() );
-
 			  switch( OttDate::instance()->current_state() )
 			  {
+			    case OttDate::EState_Idle: {
+            fontSize(12);
+            textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+            fillColor( vec3(1) );
+
+            translate(0, 5);
+			  		static std::stringstream ss;
+            ss.str("");
+			  		ss<<"v"<<OttDate::instance()->current_version();
+			  		fillText( ss.str() );
+ 
+ 			  		translate(0, -15);
+			      fillText( "check for" );
+ 			  		translate(0, -12);
+			      fillText( "update?" );
+           
+			  		translate(0, 22);
+            break;
+          }	
 			    case OttDate::EState_Downloading: {	
+            fontSize(12);
+            textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+            fillColor( vec3(1) );
+			      fillText( OttDate::instance()->state_name() );
+
 			  		fontSize(18);
 			  		translate(0, -20);
 			  		static std::stringstream ss;
@@ -359,6 +377,14 @@ STAK_EXPORT int init() {
    		  		drawProgressArc(display, (OttDate::instance()->download_percentage()%100) / 100.0); 
 			  		break;
 			  	}
+          default: {
+			      //print current state
+            fontSize(12);
+            textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+            fillColor( vec3(1) );
+			      fillText( OttDate::instance()->state_name() );
+          }
+
 			  }
 
     });
@@ -556,6 +582,7 @@ STAK_EXPORT int init() {
   }
 
 // Deactivate until kernel module pulling GPIO pin is ready
+#define ACTIVATE_NAP
 #ifdef ACTIVTATE_NAP
   //
   // Nap
