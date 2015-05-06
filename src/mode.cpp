@@ -620,8 +620,8 @@ STAK_EXPORT int init() {
   }
 
 // Deactivate until kernel module pulling GPIO pin is ready
-#define ACTIVATE_NAP
-#ifdef ACTIVTATE_NAP
+#define ACTIVATE_NAP 1
+#ifdef ACTIVATE_NAP
   //
   // Nap
   //
