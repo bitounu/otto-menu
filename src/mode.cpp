@@ -175,6 +175,7 @@ STAK_EXPORT int init() {
     auto ssid_command = "iwconfig wlan1 | grep ESSID | cut -d\\\" -f 2";
     auto ip_command_eth1 = "ip addr show eth1 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep -oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
     auto ip_command_wlan0 = "ip addr show wlan0 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep -oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
+    auto ip_command_wlan1 = "ip addr show wlan1 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep -oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
     while( running ) {
       {
         auto retval = pipe_to_string( ssid_command );
@@ -189,10 +190,15 @@ STAK_EXPORT int init() {
         auto ip_string = std::string("");
         if( !retval.empty() ) {
           ip_string = retval;
-        } else{
+        } else {
           retval = pipe_to_string( ip_command_eth1 );
           if( !retval.empty() ) {
             ip_string = retval;
+          } else{
+            retval = pipe_to_string( ip_command_wlan1 );
+            if( !retval.empty() ) {
+              ip_string = retval;
+            }
           }
         }
         wifiInfo.set_ip( ip_string );
@@ -205,8 +211,8 @@ STAK_EXPORT int init() {
 
   // Load images
   mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
-  mode.iconMemoryMask = loadSvg(assets + "icon-memory-mask.svg", "px", 96);
-  mode.iconCharging = loadSvg(assets + "icon-charging.svg", "px", 96);
+  mode.iconMemoryMask  = loadSvg(assets + "icon-memory-mask.svg",  "px", 96);
+  mode.iconCharging    = loadSvg(assets + "icon-charging.svg",     "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
