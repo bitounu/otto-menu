@@ -36,6 +36,7 @@ static const float halfPi = M_PI / 2.0f;
 static const float detailDurationMin = 1.0f;
 
 static std::thread infoPollingThread;
+static std::thread batteryPollingThread;
 static volatile bool running = true;
 
 std::mutex info_mutex;
@@ -87,11 +88,12 @@ struct DiskSpace {
   uint64_t used, total;
 };
 
-struct Power {
-  float percentCharged;
-  uint64_t timeToDepleted, timeToCharged;
+static struct Power {
+  float charge;
+  float current;
+  float voltage;
   bool isCharging;
-};
+} power;
 
 struct Nap {
   Output<float> progress = 0.0f;
@@ -450,29 +452,40 @@ STAK_EXPORT int init() {
   //
   // Battery
   //
+  
+  auto bt = std::thread( [] {
+    while( running ) {
+      power.isCharging = ottoPowerIsCharging();
+//      if (power.isCharging)
+//        power.timeToCharged = ottoPowerTimeToFullyCharged();
+//      else
+//        power.timeToDepleted = ottoPowerTimeToDepletion();
+
+      power.charge  = ottoPowerCharge_Percent();
+      power.current = ottoPowerCurrent_mA();
+      power.voltage = ottoPowerVoltage_V();
+
+      std::this_thread::sleep_for(std::chrono::seconds(2));
+    }
+  });
+  batteryPollingThread = std::move(bt);
+
   {
     auto bat = makeMenuItem(mode.entities, mode.rootMenu);
     bat.assign<Label>("battery");
     bat.assign<DetailView>();
     bat.assign<Power>();
-    bat.replace<PressHandler>([](MenuSystem &ms, Entity e) {
-      auto power = e.component<Power>();
-      power->isCharging = ottoPowerIsCharging();
-      if (power->isCharging)
-        power->timeToCharged = ottoPowerTimeToFullyCharged();
-      else
-        power->timeToDepleted = ottoPowerTimeToDepletion();
 
+    bat.replace<PressHandler>([](MenuSystem &ms, Entity e) {
       e.component<DetailView>()->press();
     });
+
     bat.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
       e.component<DetailView>()->release();
     });
+
     bat.replace<DrawHandler>([](Entity e) {
       auto detail = e.component<DetailView>();
-
-      auto power = e.component<Power>();
-      power->percentCharged = ottoPowerPercent();
 
       if (detail->generalScale > 0.0f) {
         scale(detail->generalScale);
@@ -494,7 +507,7 @@ STAK_EXPORT int init() {
 
         beginPath();
         float t = mode.time * 2.0f;
-        float y = -48.0f + (power->percentCharged / 100.f) * 96.0f;
+        float y = -48.0f + (power.charge / 100.f) * 96.0f;
         moveTo(-48.0f, y + std::sin(t) / pi * 10.0f);
         lineTo(48.0f, y + std::cos(t) / pi * 10.0f);
         lineTo(48, -48);
@@ -502,7 +515,7 @@ STAK_EXPORT int init() {
         fillColor(0, 1, 0);
         fill();
 
-        if (power->isCharging) {
+        if (power.isCharging) {
           translate(display.bounds.size * -0.5f);
           drawSvg(mode.iconCharging);
         }
@@ -517,9 +530,12 @@ STAK_EXPORT int init() {
         translate(0, 8);
         textAlign(ALIGN_CENTER | ALIGN_BASELINE);
         fontSize(20);
-        char percentText[20];
-        //sprintf(percentText, "%.1f%%", power->percentCharged);
-        sprintf(percentText, "coming");
+        char percentText[200];
+        if(power.isCharging) {
+          sprintf(percentText, "%d mA", (int)(power.current));
+        } else {
+          sprintf(percentText, "%.1f%%", power.charge);
+        }
         fillText(percentText);
         popTransform();
 
@@ -533,10 +549,15 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, -23);
-        auto timeText =
-            formatMillis(power->isCharging ? power->timeToCharged : power->timeToDepleted);
+        //auto timeText =
+        //    formatMillis(power.isCharging ? power.timeToCharged : power.timeToDepleted);
         //fillTextCenteredWithSuffix(timeText.first, timeText.second, 21, 14);
-        sprintf(percentText, "soon...");
+        if( power.isCharging ) {
+          sprintf(percentText,"charging");
+        } else {
+          sprintf(percentText,"%.1f V",power.voltage );
+        }
+          
         fillText(percentText);
         popTransform();
       }
@@ -621,7 +642,7 @@ STAK_EXPORT int init() {
 
 // Deactivate until kernel module pulling GPIO pin is ready
 #define ACTIVATE_NAP 1
-#ifdef ACTIVATE_NAP
+#if ACTIVATE_NAP
   //
   // Nap
   //
