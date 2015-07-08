@@ -93,6 +93,7 @@ static struct Power {
   float current;
   float voltage;
   bool isCharging;
+  bool isFull;
 } power;
 
 struct Nap {
@@ -456,11 +457,7 @@ STAK_EXPORT int init() {
   auto bt = std::thread( [] {
     while( running ) {
       power.isCharging = ottoPowerIsCharging();
-//      if (power.isCharging)
-//        power.timeToCharged = ottoPowerTimeToFullyCharged();
-//      else
-//        power.timeToDepleted = ottoPowerTimeToDepletion();
-
+      power.isFull = ottoPowerIsFull();
       power.charge  = ottoPowerCharge_Percent();
       power.current = ottoPowerCurrent_mA();
       power.voltage = ottoPowerVoltage_V();
@@ -507,7 +504,7 @@ STAK_EXPORT int init() {
 
         beginPath();
         float t = mode.time * 2.0f;
-        float y = -48.0f + (power.charge / 100.f) * 96.0f;
+        float y = -34.0f + (power.charge / 100.f) * 68.0f;
         moveTo(-48.0f, y + std::sin(t) / pi * 10.0f);
         lineTo(48.0f, y + std::cos(t) / pi * 10.0f);
         lineTo(48, -48);
@@ -531,10 +528,13 @@ STAK_EXPORT int init() {
         textAlign(ALIGN_CENTER | ALIGN_BASELINE);
         fontSize(20);
         char percentText[200];
-        if(power.isCharging) {
+        if(power.isFull == 1) {
+	  sprintf(percentText, "Full :)");
+	} else if( power.isCharging == 1 ) {
           sprintf(percentText, "%d mA", (int)(power.current));
         } else {
-          sprintf(percentText, "%.1f%%", power.charge);
+          sprintf(percentText, " ");
+        //  sprintf(percentText, "%.1f%%", power.charge);
         }
         fillText(percentText);
         popTransform();
@@ -552,12 +552,13 @@ STAK_EXPORT int init() {
         //auto timeText =
         //    formatMillis(power.isCharging ? power.timeToCharged : power.timeToDepleted);
         //fillTextCenteredWithSuffix(timeText.first, timeText.second, 21, 14);
-        if( power.isCharging ) {
-          sprintf(percentText,"charging");
+        if( power.isFull ) {
+            sprintf(percentText,"charged!");
+        } else if( power.isCharging ) {
+            sprintf(percentText,"charging");
         } else {
           sprintf(percentText,"%.1f V",power.voltage );
         }
-          
         fillText(percentText);
         popTransform();
       }
