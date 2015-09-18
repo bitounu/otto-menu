@@ -24,6 +24,7 @@
 #include <mutex>
 #include <algorithm>
 #include <cstring>
+#include <vector>
 #include <sys/stat.h>
 
 using namespace choreograph;
@@ -38,6 +39,24 @@ static const float detailDurationMin = 1.0f;
 static std::thread infoPollingThread;
 static std::thread batteryPollingThread;
 static volatile bool running = true;
+
+enum class ModeType { Gif, Still, None };
+static ModeType activeModeType = ModeType::None;
+
+static std::vector<std::string> modeFilenames{
+  "/stak/sdk/libotto_gif_mode.so",
+  "/stak/sdk/libotto_still_mode.so"
+};
+
+static void activateMode(ModeType modeType) {
+  if (modeType != ModeType::None) {
+    if (modeType != activeModeType) {
+      stak_load_mode(modeFilenames[static_cast<size_t>(modeType)].c_str());
+      activeModeType = modeType;
+    }
+    stak_activate_mode();
+  }
+}
 
 std::mutex info_mutex;
 
@@ -246,7 +265,16 @@ STAK_EXPORT int init() {
   {
     auto gif = makeMenuItem(mode.entities, mode.rootMenu);
     gif.replace<DrawHandler>(makeTextDraw("gif"));
-    gif.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { stak_activate_mode(); });
+    gif.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { activateMode(ModeType::Gif); });
+  }
+
+  //
+  // Still Mode
+  //
+  {
+    auto still = makeMenuItem(mode.entities, mode.rootMenu);
+    still.replace<DrawHandler>(makeTextDraw("still"));
+    still.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { activateMode(ModeType::Still); });
   }
 
   //
@@ -391,16 +419,16 @@ STAK_EXPORT int init() {
             ss.str("");
 			  		ss<<"v"<<OttDate::instance()->current_version();
 			  		fillText( ss.str() );
- 
+
  			  		translate(0, -15);
 			      fillText( "check for" );
  			  		translate(0, -12);
 			      fillText( "update?" );
-           
+
 			  		translate(0, 22);
             break;
-          }	
-			    case OttDate::EState_Downloading: {	
+          }
+			    case OttDate::EState_Downloading: {
             fontSize(12);
             textAlign(ALIGN_CENTER | ALIGN_BASELINE);
             fillColor( vec3(1) );
@@ -415,7 +443,7 @@ STAK_EXPORT int init() {
 			  		fillText( ss.str() );
 			  		translate(0, 20);
 			  		//fillColor(vec4(colorBGR(0xEC008B), rewindMeterOpacity()));
-   		  		drawProgressArc(display, (OttDate::instance()->download_percentage()%100) / 100.0); 
+   		  		drawProgressArc(display, (OttDate::instance()->download_percentage()%100) / 100.0);
 			  		break;
 			  	}
           default: {
@@ -453,7 +481,7 @@ STAK_EXPORT int init() {
   //
   // Battery
   //
-  
+
   auto bt = std::thread( [] {
     while( running ) {
       power.isCharging = ottoPowerIsCharging();
@@ -831,7 +859,9 @@ STAK_EXPORT int shutter_button_released() {
 }
 
 STAK_EXPORT int power_button_pressed() {
-  if (!display.wake() && !mode.isPoweringDown) stak_activate_mode();
+  if (!display.wake() && !mode.isPoweringDown && activeModeType != ModeType::None) {
+    stak_activate_mode();
+  }
   return 0;
 }
 
