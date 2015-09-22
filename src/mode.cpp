@@ -40,22 +40,14 @@ static std::thread infoPollingThread;
 static std::thread batteryPollingThread;
 static volatile bool running = true;
 
-enum class ModeType { Gif, Still, None };
-static ModeType activeModeType = ModeType::None;
+enum ActiveModeType { kModeNone, kModeGif, kModeStill };
+static ActiveModeType activeModeType = kModeNone;
 
-static std::vector<std::string> modeFilenames{
-  "/stak/sdk/libotto_gif_mode.so",
-  "/stak/sdk/libotto_still_mode.so"
-};
-
-static void activateMode(ModeType modeType) {
-  if (modeType != ModeType::None) {
-    if (modeType != activeModeType) {
-      stak_load_mode(modeFilenames[static_cast<size_t>(modeType)].c_str());
-      activeModeType = modeType;
-    }
-    stak_activate_mode();
-  }
+static void activateMode(ActiveModeType modeType) {
+  if (modeType == kModeNone) return;
+  if (modeType == kModeGif) stak_activate_gif_mode();
+  else if (modeType == kModeStill) stak_activate_still_mode();
+  activeModeType = modeType;
 }
 
 std::mutex info_mutex;
@@ -66,27 +58,22 @@ static struct WifiInfo {
   std::string ssid;
 
   const std::string get_ssid() {
-    std::lock_guard<std::mutex> lock( info_mutex );
+    std::lock_guard<std::mutex> lock(info_mutex);
     return ssid;
-
   }
-  void set_ssid( const std::string& new_ssid ) {
-    std::lock_guard<std::mutex> lock( info_mutex );
+  void set_ssid(const std::string &new_ssid) {
+    std::lock_guard<std::mutex> lock(info_mutex);
     ssid = new_ssid;
-
   }
   const std::string get_ip() {
-    std::lock_guard<std::mutex> lock( info_mutex );
+    std::lock_guard<std::mutex> lock(info_mutex);
     return ip;
-
   }
-  void set_ip( const std::string& new_ip ) {
-    std::lock_guard<std::mutex> lock( info_mutex );
+  void set_ip(const std::string &new_ip) {
+    std::lock_guard<std::mutex> lock(info_mutex);
     ip = new_ip;
-
   }
 } wifiInfo;
-
 
 static struct MenuMode : public entityx::EntityX {
   Entity rootMenu;
@@ -139,7 +126,9 @@ struct DetailView {
 
     timeline.apply(&generalScale).then<RampTo>(0.0f, 0.15f, EaseInQuad());
     timeline.apply(&detailScale).then<Hold>(0.0f, 0.15f).then<RampTo>(1.0f, 0.15f, EaseOutQuad());
-    timeline.cue([this] { if (!isPressed) release(); }, detailDurationMin);
+    timeline.cue([this] {
+      if (!isPressed) release();
+    }, detailDurationMin);
 
     pressTime = std::chrono::steady_clock::now();
   }
@@ -156,29 +145,26 @@ struct DetailView {
 };
 
 
-std::string pipe_to_string( const char* command )
-{
-    FILE* file = popen( command, "r" );
+std::string pipe_to_string(const char *command) {
+  FILE *file = popen(command, "r");
 
-    if( file )
-    {
-        std::ostringstream stm;
+  if (file) {
+    std::ostringstream stm;
 
-        constexpr std::size_t MAX_LINE_SZ = 1024;
-        char line[MAX_LINE_SZ];
+    constexpr std::size_t MAX_LINE_SZ = 1024;
+    char line[MAX_LINE_SZ];
 
-        while( fgets( line, MAX_LINE_SZ, file ) ) stm << line;
+    while (fgets(line, MAX_LINE_SZ, file)) stm << line;
 
-        pclose(file);
-        std::string returnData = stm.str();
-        returnData.erase(std::remove_if(returnData.begin(),
-                              returnData.end(),
-                              [](char x){ return ( (x == '\n')||(x=='\r') ); }),
-               returnData.end());
-        return returnData;
-    }
+    pclose(file);
+    std::string returnData = stm.str();
+    returnData.erase(std::remove_if(returnData.begin(), returnData.end(), [](char x) {
+                       return ((x == '\n') || (x == '\r'));
+                     }), returnData.end());
+    return returnData;
+  }
 
-    return "";
+  return "";
 }
 
 static bool wifiState = false;
@@ -187,43 +173,46 @@ STAK_EXPORT int init() {
   wifiState = ottoWifiIsEnabled();
   auto assets = std::string(stak_assets_path());
 
-  mkdir( "/mnt/tmp", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH );
-  mkdir( "/mnt/pictures", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH );
+  mkdir("/mnt/tmp", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+  mkdir("/mnt/pictures", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
   running = true;
   wifiInfo.set_ssid(std::string(""));
   wifiInfo.set_ip(std::string(""));
-  auto t = std::thread( [] {
+  auto t = std::thread([] {
     auto ssid_command = "iwconfig wlan1 | grep ESSID | cut -d\\\" -f 2";
-    auto ip_command_eth1 = "ip addr show eth1 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep -oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
-    auto ip_command_wlan0 = "ip addr show wlan0 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep -oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
-    auto ip_command_wlan1 = "ip addr show wlan1 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep -oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
-    while( running ) {
+    auto ip_command_eth1 = "ip addr show eth1 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep "
+                           "-oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
+    auto ip_command_wlan0 = "ip addr show wlan0 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep "
+                            "-oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
+    auto ip_command_wlan1 = "ip addr show wlan1 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep "
+                            "-oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
+    while (running) {
       {
-        auto retval = pipe_to_string( ssid_command );
-        if( !retval.empty() ) {
-          wifiInfo.set_ssid( std::string(retval) );
-        } else{
-          wifiInfo.set_ssid( std::string("") );
+        auto retval = pipe_to_string(ssid_command);
+        if (!retval.empty()) {
+          wifiInfo.set_ssid(std::string(retval));
+        } else {
+          wifiInfo.set_ssid(std::string(""));
         }
       }
       {
-        std::string retval = pipe_to_string( ip_command_wlan0 );
+        std::string retval = pipe_to_string(ip_command_wlan0);
         auto ip_string = std::string("");
-        if( !retval.empty() ) {
+        if (!retval.empty()) {
           ip_string = retval;
         } else {
-          retval = pipe_to_string( ip_command_eth1 );
-          if( !retval.empty() ) {
+          retval = pipe_to_string(ip_command_eth1);
+          if (!retval.empty()) {
             ip_string = retval;
-          } else{
-            retval = pipe_to_string( ip_command_wlan1 );
-            if( !retval.empty() ) {
+          } else {
+            retval = pipe_to_string(ip_command_wlan1);
+            if (!retval.empty()) {
               ip_string = retval;
             }
           }
         }
-        wifiInfo.set_ip( ip_string );
+        wifiInfo.set_ip(ip_string);
       }
       std::this_thread::sleep_for(std::chrono::seconds(2));
     }
@@ -233,8 +222,8 @@ STAK_EXPORT int init() {
 
   // Load images
   mode.iconBatteryMask = loadSvg(assets + "icon-battery-mask.svg", "px", 96);
-  mode.iconMemoryMask  = loadSvg(assets + "icon-memory-mask.svg",  "px", 96);
-  mode.iconCharging    = loadSvg(assets + "icon-charging.svg",     "px", 96);
+  mode.iconMemoryMask = loadSvg(assets + "icon-memory-mask.svg", "px", 96);
+  mode.iconCharging = loadSvg(assets + "icon-charging.svg", "px", 96);
 
   mode.rootMenu = makeMenu(mode.entities);
 
@@ -265,7 +254,7 @@ STAK_EXPORT int init() {
   {
     auto gif = makeMenuItem(mode.entities, mode.rootMenu);
     gif.replace<DrawHandler>(makeTextDraw("gif"));
-    gif.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { activateMode(ModeType::Gif); });
+    gif.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { activateMode(kModeGif); });
   }
 
   //
@@ -274,7 +263,7 @@ STAK_EXPORT int init() {
   {
     auto still = makeMenuItem(mode.entities, mode.rootMenu);
     still.replace<DrawHandler>(makeTextDraw("still"));
-    still.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { activateMode(ModeType::Still); });
+    still.replace<ActivateHandler>([](MenuSystem &ms, Entity e) { activateMode(kModeStill); });
   }
 
   //
@@ -286,20 +275,19 @@ STAK_EXPORT int init() {
     wifi.assign<Blips>();
     wifi.assign<DetailView>();
     wifi.replace<DrawHandler>([](Entity e) {
-
-      if( wifiState != ottoWifiIsEnabled() ) {
+      if (wifiState != ottoWifiIsEnabled()) {
         wifiState = ottoWifiIsEnabled();
-        if ( wifiState ) {
+        if (wifiState) {
           e.component<Blips>()->startAnim();
           e.component<DetailView>()->press();
-        }
-        else {
+        } else {
           e.component<Blips>()->stopAnim();
           e.component<DetailView>()->release();
         }
       }
+
       auto detail = e.component<DetailView>();
-      auto fillTextCentered =  [](const std::string &text, float textSize) {
+      auto fillTextCentered = [](const std::string &text, float textSize) {
         ScopedTransform xf;
 
         fontSize(textSize);
@@ -311,6 +299,7 @@ STAK_EXPORT int init() {
         fillText(text);
         translate(textBounds.size.x, 0);
       };
+
       {
         ScopedTransform xf;
         translate(0, 20);
@@ -327,15 +316,17 @@ STAK_EXPORT int init() {
 
         e.component<Blips>()->drawCenter();
       }
-      if( !ottoWifiIsEnabled() ) {
-          pushTransform();
-          translate(0, -30);
-          fontSize(18);
-          textAlign(ALIGN_CENTER | ALIGN_BASELINE);
-          fillColor(vec3(1));
-          fillText( "OFF" );
-          popTransform();
-        }
+
+      if (!ottoWifiIsEnabled()) {
+        pushTransform();
+        translate(0, -30);
+        fontSize(18);
+        textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+        fillColor(vec3(1));
+        fillText("OFF");
+        popTransform();
+      }
+
       if (detail->detailScale > 0.0f) {
         auto ds = e.component<DiskSpace>();
 
@@ -355,8 +346,7 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, 4);
-        if( !wifiInfo.get_ssid().empty() )
-          fillTextCentered( wifiInfo.get_ssid().c_str(), 10 );
+        if (!wifiInfo.get_ssid().empty()) fillTextCentered(wifiInfo.get_ssid().c_str(), 10);
         popTransform();
 
 
@@ -373,30 +363,24 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, -18);
-        if( !wifiInfo.get_ip().empty() )
-          fillTextCentered( wifiInfo.get_ip().c_str(), 10 );
+        if (!wifiInfo.get_ip().empty()) fillTextCentered(wifiInfo.get_ip().c_str(), 10);
         popTransform();
       }
-
-
-
-
     });
     wifi.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
       if (!ottoWifiIsEnabled()) {
         ottoWifiEnable();
-        //e.component<Blips>()->startAnim();
-        //e.component<DetailView>()->press();
-        //ms.displayLabel("wifi on");
+        // e.component<Blips>()->startAnim();
+        // e.component<DetailView>()->press();
+        // ms.displayLabel("wifi on");
       } else {
         ottoWifiDisable();
-        //e.component<Blips>()->stopAnim();
-        //e.component<DetailView>()->release();
-        //ms.displayLabel("wifi off");
+        // e.component<Blips>()->stopAnim();
+        // e.component<DetailView>()->release();
+        // ms.displayLabel("wifi off");
       }
     });
   }
-
 
   //
   // Update
@@ -406,87 +390,82 @@ STAK_EXPORT int init() {
     update.assign<Label>("Update");
 
     update.replace<DrawHandler>([](Entity e) {
+      switch (OttDate::instance()->current_state()) {
+        case OttDate::EState_Idle: {
+          fontSize(12);
+          textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+          fillColor(vec3(1));
 
-			  switch( OttDate::instance()->current_state() )
-			  {
-			    case OttDate::EState_Idle: {
-            fontSize(12);
-            textAlign(ALIGN_CENTER | ALIGN_BASELINE);
-            fillColor( vec3(1) );
+          translate(0, 5);
+          static std::stringstream ss;
+          ss.str("");
+          ss << "v" << OttDate::instance()->current_version();
+          fillText(ss.str());
 
-            translate(0, 5);
-			  		static std::stringstream ss;
-            ss.str("");
-			  		ss<<"v"<<OttDate::instance()->current_version();
-			  		fillText( ss.str() );
+          translate(0, -15);
+          fillText("check for");
+          translate(0, -12);
+          fillText("update?");
 
- 			  		translate(0, -15);
-			      fillText( "check for" );
- 			  		translate(0, -12);
-			      fillText( "update?" );
+          translate(0, 22);
+          break;
+        }
+        case OttDate::EState_Downloading: {
+          fontSize(12);
+          textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+          fillColor(vec3(1));
+          fillText(OttDate::instance()->state_name());
 
-			  		translate(0, 22);
-            break;
-          }
-			    case OttDate::EState_Downloading: {
-            fontSize(12);
-            textAlign(ALIGN_CENTER | ALIGN_BASELINE);
-            fillColor( vec3(1) );
-			      fillText( OttDate::instance()->state_name() );
-
-			  		fontSize(18);
-			  		translate(0, -20);
-			  		static std::stringstream ss;
-			  		ss.str("");
-			  		ss<<OttDate::instance()->download_percentage();
-			  		ss<<"%";
-			  		fillText( ss.str() );
-			  		translate(0, 20);
-			  		//fillColor(vec4(colorBGR(0xEC008B), rewindMeterOpacity()));
-   		  		drawProgressArc(display, (OttDate::instance()->download_percentage()%100) / 100.0);
-			  		break;
-			  	}
-          default: {
-			      //print current state
-            fontSize(12);
-            textAlign(ALIGN_CENTER | ALIGN_BASELINE);
-            fillColor( vec3(1) );
-			      fillText( OttDate::instance()->state_name() );
-          }
-
-			  }
-
+          fontSize(18);
+          translate(0, -20);
+          static std::stringstream ss;
+          ss.str("");
+          ss << OttDate::instance()->download_percentage();
+          ss << "%";
+          fillText(ss.str());
+          translate(0, 20);
+          // fillColor(vec4(colorBGR(0xEC008B), rewindMeterOpacity()));
+          drawProgressArc(display, (OttDate::instance()->download_percentage() % 100) / 100.0);
+          break;
+        }
+        default: {
+          // print current state
+          fontSize(12);
+          textAlign(ALIGN_CENTER | ALIGN_BASELINE);
+          fillColor(vec3(1));
+          fillText(OttDate::instance()->state_name());
+        }
+      }
     });
 
     update.replace<ActivateHandler>([](MenuSystem &ms, Entity e) {
-				switch(OttDate::instance()->current_state()) {
-					case OttDate::EState_Idle:
-						OttDate::instance()->trigger_update();
-						break;
-					case OttDate::EState_AskForReboot:
-						ms.displayLabel("Bye bye!");
-            static std::thread a( []() {
-              std::this_thread::sleep_for (std::chrono::seconds(1));
-						  system("/sbin/reboot");
-              }
-            );
-					break;
-				  default:
-				  	ms.displayLabel("busy...");
-				  break;
-				}
-		});
-	}
+      switch (OttDate::instance()->current_state()) {
+        case OttDate::EState_Idle:
+          OttDate::instance()->trigger_update();
+          break;
+        case OttDate::EState_AskForReboot:
+          ms.displayLabel("Bye bye!");
+          static std::thread a([]() {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            system("/sbin/reboot");
+          });
+          break;
+        default:
+          ms.displayLabel("busy...");
+          break;
+      }
+    });
+  }
 
   //
   // Battery
   //
 
-  auto bt = std::thread( [] {
-    while( running ) {
+  auto bt = std::thread([] {
+    while (running) {
       power.isCharging = ottoPowerIsCharging();
       power.isFull = ottoPowerIsFull();
-      power.charge  = ottoPowerCharge_Percent();
+      power.charge = ottoPowerCharge_Percent();
       power.current = ottoPowerCurrent_mA();
       power.voltage = ottoPowerVoltage_V();
 
@@ -501,13 +480,10 @@ STAK_EXPORT int init() {
     bat.assign<DetailView>();
     bat.assign<Power>();
 
-    bat.replace<PressHandler>([](MenuSystem &ms, Entity e) {
-      e.component<DetailView>()->press();
-    });
+    bat.replace<PressHandler>([](MenuSystem &ms, Entity e) { e.component<DetailView>()->press(); });
 
-    bat.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
-      e.component<DetailView>()->release();
-    });
+    bat.replace<ReleaseHandler>(
+        [](MenuSystem &ms, Entity e) { e.component<DetailView>()->release(); });
 
     bat.replace<DrawHandler>([](Entity e) {
       auto detail = e.component<DetailView>();
@@ -556,13 +532,13 @@ STAK_EXPORT int init() {
         textAlign(ALIGN_CENTER | ALIGN_BASELINE);
         fontSize(20);
         char percentText[200];
-        if(power.isFull == 1) {
-	  sprintf(percentText, "Full :)");
-	} else if( power.isCharging == 1 ) {
+        if (power.isFull == 1) {
+          sprintf(percentText, "Full :)");
+        } else if (power.isCharging == 1) {
           sprintf(percentText, "%d mA", (int)(power.current));
         } else {
           sprintf(percentText, " ");
-        //  sprintf(percentText, "%.1f%%", power.charge);
+          //  sprintf(percentText, "%.1f%%", power.charge);
         }
         fillText(percentText);
         popTransform();
@@ -577,15 +553,15 @@ STAK_EXPORT int init() {
 
         pushTransform();
         translate(0, -23);
-        //auto timeText =
+        // auto timeText =
         //    formatMillis(power.isCharging ? power.timeToCharged : power.timeToDepleted);
-        //fillTextCenteredWithSuffix(timeText.first, timeText.second, 21, 14);
-        if( power.isFull ) {
-            sprintf(percentText,"charged!");
-        } else if( power.isCharging ) {
-            sprintf(percentText,"charging");
+        // fillTextCenteredWithSuffix(timeText.first, timeText.second, 21, 14);
+        if (power.isFull) {
+          sprintf(percentText, "charged!");
+        } else if (power.isCharging) {
+          sprintf(percentText, "charging");
         } else {
-          sprintf(percentText,"%.1f V",power.voltage );
+          sprintf(percentText, "%.1f V", power.voltage);
         }
         fillText(percentText);
         popTransform();
@@ -607,12 +583,9 @@ STAK_EXPORT int init() {
     mem.assign<Bubbles>(Rect(15, 18, 65, 56), 8.0f);
     mem.assign<DetailView>();
     mem.assign<DiskSpace>();
-    mem.replace<PressHandler>([](MenuSystem &ms, Entity e) {
-      e.component<DetailView>()->press();
-    });
-    mem.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
-      e.component<DetailView>()->release();
-    });
+    mem.replace<PressHandler>([](MenuSystem &ms, Entity e) { e.component<DetailView>()->press(); });
+    mem.replace<ReleaseHandler>(
+        [](MenuSystem &ms, Entity e) { e.component<DetailView>()->release(); });
     mem.replace<SelectHandler>([](MenuSystem &ms, Entity e) {
       MenuItem::defaultHandleSelect(ms, e);
       auto ds = e.component<DiskSpace>();
@@ -710,7 +683,10 @@ STAK_EXPORT int init() {
           for (int i = 0; i < vtxCount; ++i) {
             p = vec2(radius + tipAmt * radiusTipOffset * (i % 2 == 0 ? -1.0f : 1.0f), 0.0f);
             p = glm::rotate(p, float(i) / float(vtxCount) * twoPi);
-            if (i == 0) moveTo(p); else lineTo(p);
+            if (i == 0)
+              moveTo(p);
+            else
+              lineTo(p);
           }
           fillColor(glm::mix(colorBGR(0xE7D11A), colorBGR(0x7DCED2), mapUnitClamp(t, 0.0f, 0.5f)));
           fill();
@@ -719,28 +695,26 @@ STAK_EXPORT int init() {
         // Face
         {
           static const float faceSmile[] = {
-            -14, 2,                                    // moveTo
-            -13, 6, -8, 6, -7, 2,                      // cubicTo
-            7, 2,                                      // moveTo
-            8, 6, 13, 6, 14, 2,                        // cubicTo
-            -10, -7.25,                                // moveTo
+            -14,    2,                                 // moveTo
+            -13,    6,       -8,    6,       -7, 2,    // cubicTo
+            7,      2,                                 // moveTo
+            8,      6,       13,    6,       14, 2,    // cubicTo
+            -10,    -7.25,                             // moveTo
             -5.455, -13.584, 5.455, -13.584, 10, -7.25 // cubicTo
           };
 
           static const float faceSleep[] = {
-            -14, 2,                                // moveTo
-            -13, -0.666, -8, -0.666, -7, 2,        // cubicTo
-            7, 2,                                  // moveTo
-            8, -0.666, 13, -0.666, 14, 2,          // cubicTo
-            -3, -9,                                // moveTo
-            -1.637, -10.666, 1.636, -10.666, 3, -9 // cubicTo
+            -14,    2,                              // moveTo
+            -13,    -0.666,  -8,    -0.666,  -7, 2, // cubicTo
+            7,      2,                              // moveTo
+            8,      -0.666,  13,    -0.666,  14, 2, // cubicTo
+            -3,     -9,                             // moveTo
+            -1.637, -10.666, 1.636, -10.666, 3,  -9 // cubicTo
           };
 
           // TODO(ryan): Clean this up and just build the VGPath objects directly.
           int i = 0;
-          auto fp = [&] {
-            return lerp(faceSmile[i], faceSleep[i++], quadInOut(t));
-          };
+          auto fp = [&] { return lerp(faceSmile[i], faceSleep[i++], quadInOut(t)); };
 
           strokeColor(vec3(0));
           strokeWidth(3.0f);
@@ -788,9 +762,7 @@ STAK_EXPORT int init() {
             timeline.apply(&nap->progress)
                 .then<RampTo>(2.0f, 0.5f)
                 .then<Hold>(2.0f, 1.0f)
-                .finishFn([](Motion<float> &m) {
-                  ottoSystemShutdown();
-                });
+                .finishFn([](Motion<float> &m) { ottoSystemShutdown(); });
           });
     });
     nap.replace<ReleaseHandler>([](MenuSystem &ms, Entity e) {
@@ -834,9 +806,7 @@ STAK_EXPORT int update(float dt) {
 }
 
 STAK_EXPORT int draw() {
-  display.draw([] {
-    mode.systems.system<MenuSystem>()->draw();
-  });
+  display.draw([] { mode.systems.system<MenuSystem>()->draw(); });
   return 0;
 }
 
@@ -859,8 +829,8 @@ STAK_EXPORT int shutter_button_released() {
 }
 
 STAK_EXPORT int power_button_pressed() {
-  if (!display.wake() && !mode.isPoweringDown && activeModeType != ModeType::None) {
-    stak_activate_mode();
+  if (!display.wake() && !mode.isPoweringDown) {
+    activateMode(activeModeType);
   }
   return 0;
 }
