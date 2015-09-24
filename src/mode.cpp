@@ -180,7 +180,9 @@ STAK_EXPORT int init() {
   wifiInfo.set_ssid(std::string(""));
   wifiInfo.set_ip(std::string(""));
   auto t = std::thread([] {
-    auto ssid_command = "iwconfig wlan1 | grep ESSID | cut -d\\\" -f 2";
+    auto host_ssid_cmd = "hostapd_cli status |& grep '^ssid\\[0\\]' | cut -d= -f 2";
+    auto connected_ssid_cmd = "wpa_cli status |& grep '^ssid' | cut -d= -f 2";
+
     auto ip_command_eth1 = "ip addr show eth1 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep "
                            "-oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
     auto ip_command_wlan0 = "ip addr show wlan0 | grep -E \"inet\\s\" | awk '{ print $2 }' | grep "
@@ -189,11 +191,16 @@ STAK_EXPORT int init() {
                             "-oE \"[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\"";
     while (running) {
       {
-        auto retval = pipe_to_string(ssid_command);
-        if (!retval.empty()) {
-          wifiInfo.set_ssid(std::string(retval));
+        auto connected_ssid = pipe_to_string(connected_ssid_cmd);
+        if (!connected_ssid.empty()) {
+          wifiInfo.set_ssid(connected_ssid);
         } else {
-          wifiInfo.set_ssid(std::string(""));
+          auto host_ssid = pipe_to_string(host_ssid_cmd);
+          if (!host_ssid.empty()) {
+            wifiInfo.set_ssid(host_ssid);
+          } else {
+            wifiInfo.set_ssid("");
+          }
         }
       }
       {
@@ -214,6 +221,7 @@ STAK_EXPORT int init() {
         }
         wifiInfo.set_ip(ip_string);
       }
+
       std::this_thread::sleep_for(std::chrono::seconds(2));
     }
   });
